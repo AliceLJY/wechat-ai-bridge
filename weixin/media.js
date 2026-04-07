@@ -138,13 +138,6 @@ export async function uploadMedia(token, data, filename, mediaType = 1, toUserId
   // 从响应头获取下载参数
   const downloadParam = cdnResp.headers.get("x-encrypted-param") || "";
 
-  // 调试：打印所有响应头和 body
-  const cdnHeaders = Object.fromEntries(cdnResp.headers.entries());
-  const cdnBody = await cdnResp.text().catch(() => "");
-  console.log(`[media] CDN upload response headers: ${JSON.stringify(cdnHeaders)}`);
-  if (cdnBody) console.log(`[media] CDN upload response body: ${cdnBody.slice(0, 500)}`);
-  console.log(`[media] downloadParam: ${downloadParam ? downloadParam.slice(0, 100) + "..." : "(empty)"}`);
-
   // 返回 sendmessage 需要的引用参数
   return {
     aes_key: aeskeyHex,
