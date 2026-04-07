@@ -44,12 +44,12 @@ export async function loginWithQR(renderQR) {
     console.log(`[auth] 获取登录二维码 (attempt ${attempt + 1}/${MAX_RETRIES})...`);
     const qrResp = await iLinkGet("/ilink/bot/get_bot_qrcode?bot_type=3");
 
-    if (!qrResp.qrcode || !qrResp.url) {
+    const qrUrl = qrResp.qrcode_img_content || qrResp.url;
+    if (!qrResp.qrcode || !qrUrl) {
       throw new Error(`获取二维码失败: ${JSON.stringify(qrResp).slice(0, 200)}`);
     }
 
     const qrcode = qrResp.qrcode;
-    const qrUrl = qrResp.url;
 
     // 渲染二维码
     renderQR(qrUrl);
