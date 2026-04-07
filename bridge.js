@@ -438,14 +438,20 @@ async function processPrompt(ctx, prompt) {
             continue;
           }
           if (IMAGE_EXTS.has(ext)) {
+            console.log(`[Bridge] 上传图片: ${fileName} (${fileData.length} bytes)`);
             const ref = await uploadMedia(WECHAT_BOT_TOKEN, fileData, fileName, 1, ctx.userId);
+            console.log(`[Bridge] 上传成功, 发送中...`);
             await sendImage(WECHAT_BOT_TOKEN, ctx.userId, ctx.contextToken, ref);
+            console.log(`[Bridge] 图片已发送: ${fileName}`);
           } else {
+            console.log(`[Bridge] 上传文件: ${fileName} (${fileData.length} bytes)`);
             const ref = await uploadMedia(WECHAT_BOT_TOKEN, fileData, fileName, 3, ctx.userId);
+            console.log(`[Bridge] 上传成功, 发送中...`);
             await sendFile(WECHAT_BOT_TOKEN, ctx.userId, ctx.contextToken, ref);
+            console.log(`[Bridge] 文件已发送: ${fileName}`);
           }
         } catch (e) {
-          console.error(`[Bridge] 文件发送失败 (${fileName}): ${e.message}`);
+          console.error(`[Bridge] 文件发送失败 (${fileName}): ${e.message}\n${e.stack}`);
         }
       }
     }
@@ -760,7 +766,6 @@ async function onMessage(msg) {
     for (const item of items) {
       if (item.type === ItemType.IMAGE) {
         try {
-          console.log(`[media] 图片 item 结构: ${JSON.stringify(item).slice(0, 2000)}`);
           const result = await downloadImage(item);
           if (result) {
             const localPath = join(FILE_DIR, `${Date.now()}-${result.filename}`);
@@ -776,7 +781,6 @@ async function onMessage(msg) {
         }
       } else if (item.type === ItemType.FILE) {
         try {
-          console.log(`[media] 文件 item 结构: ${JSON.stringify(item).slice(0, 500)}`);
           const result = await downloadMediaFile(item);
           if (result) {
             const localPath = join(FILE_DIR, `${Date.now()}-${result.filename}`);
