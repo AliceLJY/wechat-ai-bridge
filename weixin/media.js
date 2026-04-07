@@ -93,16 +93,26 @@ export async function uploadMedia(token, data, filename, fileType = 1) {
 export async function downloadImage(imageItem) {
   try {
     const img = imageItem.image_item || imageItem;
-    const cdnUrl = img.cdn_url || img.full_url || img.url;
-    const aesKey = img.aes_key;
+    const media = img.media || {};
 
-    if (!cdnUrl) return null;
+    // URL: media.full_url 优先，兜底拼接
+    const cdnUrl = media.full_url || img.cdn_url || img.full_url || img.url;
+    // AES key: media.aes_key (base64) 优先，兜底用 img.aeskey (hex → base64)
+    let aesKey = media.aes_key || img.aes_key;
+    if (!aesKey && img.aeskey) {
+      // aeskey 是 hex 格式，转为 base64
+      aesKey = Buffer.from(img.aeskey, "hex").toString("base64");
+    }
+
+    if (!cdnUrl) {
+      console.error("[media] downloadImage: no CDN URL found");
+      return null;
+    }
 
     if (aesKey) {
       const data = await downloadMedia(cdnUrl, aesKey);
       return { data, filename: img.file_name || "image.jpg" };
     } else {
-      // 无加密，直接下载
       const resp = await fetch(cdnUrl);
       if (!resp.ok) return null;
       const data = Buffer.from(await resp.arrayBuffer());
@@ -120,19 +130,27 @@ export async function downloadImage(imageItem) {
 export async function downloadFile(fileItem) {
   try {
     const file = fileItem.file_item || fileItem;
-    const cdnUrl = file.cdn_url || file.full_url || file.url;
-    const aesKey = file.aes_key;
+    const media = file.media || {};
 
-    if (!cdnUrl) return null;
+    const cdnUrl = media.full_url || file.cdn_url || file.full_url || file.url;
+    let aesKey = media.aes_key || file.aes_key;
+    if (!aesKey && file.aeskey) {
+      aesKey = Buffer.from(file.aeskey, "hex").toString("base64");
+    }
+
+    if (!cdnUrl) {
+      console.error("[media] downloadFile: no CDN URL found");
+      return null;
+    }
 
     if (aesKey) {
       const data = await downloadMedia(cdnUrl, aesKey);
-      return { data, filename: file.file_name || "file" };
+      return { data, filename: file.file_name || media.file_name || "file" };
     } else {
       const resp = await fetch(cdnUrl);
       if (!resp.ok) return null;
       const data = Buffer.from(await resp.arrayBuffer());
-      return { data, filename: file.file_name || "file" };
+      return { data, filename: file.file_name || media.file_name || "file" };
     }
   } catch (err) {
     console.error(`[media] downloadFile error: ${err.message}`);

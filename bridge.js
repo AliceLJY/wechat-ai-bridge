@@ -760,6 +760,7 @@ async function onMessage(msg) {
     for (const item of items) {
       if (item.type === ItemType.IMAGE) {
         try {
+          console.log(`[media] 图片 item 结构: ${JSON.stringify(item).slice(0, 2000)}`);
           const result = await downloadImage(item);
           if (result) {
             const localPath = join(FILE_DIR, `${Date.now()}-${result.filename}`);
@@ -775,6 +776,7 @@ async function onMessage(msg) {
         }
       } else if (item.type === ItemType.FILE) {
         try {
+          console.log(`[media] 文件 item 结构: ${JSON.stringify(item).slice(0, 500)}`);
           const result = await downloadMediaFile(item);
           if (result) {
             const localPath = join(FILE_DIR, `${Date.now()}-${result.filename}`);
