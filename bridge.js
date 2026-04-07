@@ -719,7 +719,21 @@ async function onMessage(msg) {
   const ctx = { userId, contextToken, chatId };
 
   const text = extractText(msg);
-  if (!text) return; // Phase 2 处理图片/文件
+
+  // 非文本消息：检测类型并提示
+  if (!text) {
+    const types = (msg.item_list || []).map(i => i.type);
+    if (types.includes(ItemType.IMAGE)) {
+      await sendText(WECHAT_BOT_TOKEN, userId, "📷 收到图片，但图片传输功能还在开发中（Phase 2）。目前只支持文字对话。", contextToken).catch(() => {});
+    } else if (types.includes(ItemType.VOICE)) {
+      await sendText(WECHAT_BOT_TOKEN, userId, "🎤 收到语音，语音功能还在开发中。目前只支持文字对话。", contextToken).catch(() => {});
+    } else if (types.includes(ItemType.FILE)) {
+      await sendText(WECHAT_BOT_TOKEN, userId, "📎 收到文件，文件传输功能还在开发中（Phase 2）。目前只支持文字对话。", contextToken).catch(() => {});
+    } else if (types.includes(ItemType.VIDEO)) {
+      await sendText(WECHAT_BOT_TOKEN, userId, "🎬 收到视频，暂不支持视频处理。", contextToken).catch(() => {});
+    }
+    return;
+  }
 
   // 限流
   if (!rateLimiter.isAllowed(chatId)) {
