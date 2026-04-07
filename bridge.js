@@ -134,6 +134,7 @@ const verboseSettings = new Map();
 const pendingInteractions = new Map(); // chatId -> { type, resolve, options?, cleanup? }
 const chatPermState = new Map();
 const chatAbortControllers = new Map();
+const lastSessionList = new Map(); // chatId -> [{session_id, ...}] — /sessions 的缓存，供 /resume <序号> 使用
 
 // ── 工具函数 ──
 
@@ -591,14 +592,26 @@ async function handleCommand(ctx, text) {
 
     case "/resume": {
       if (!args) {
-        await sendText(WECHAT_BOT_TOKEN, ctx.userId, "用法: /resume <session-id>\n也可以用 /sessions 查看列表。", ctx.contextToken);
+        await sendText(WECHAT_BOT_TOKEN, ctx.userId, "用法: /resume <序号或ID>\n先用 /sessions 查看列表，再 /resume 3 恢复第3条。", ctx.contextToken);
         break;
       }
       const backend = getBackendName(chatId);
       const adapter = getAdapter(chatId);
-      setSession(chatId, args, "", backend, "owned");
+      let sessionId = args.trim();
+      // 支持序号：/resume 3 → 从上次 /sessions 列表取第3条
+      const num = parseInt(sessionId, 10);
+      if (!isNaN(num) && num >= 1) {
+        const cached = lastSessionList.get(chatId);
+        if (cached && num <= cached.length) {
+          sessionId = cached[num - 1].session_id;
+        } else {
+          await sendText(WECHAT_BOT_TOKEN, ctx.userId, `序号 ${num} 无效，请先 /sessions 查看列表。`, ctx.contextToken);
+          break;
+        }
+      }
+      setSession(chatId, sessionId, "", backend, "owned");
       await sendText(WECHAT_BOT_TOKEN, ctx.userId,
-        `${adapter.icon} 已绑定会话 ${args.slice(0, 8)}...（${backend}）\n后续消息继续此 session。`,
+        `${adapter.icon} 已绑定会话 ${sessionId.slice(0, 8)}...（${backend}）\n后续消息继续此 session。`,
         ctx.contextToken,
       );
       break;
@@ -630,8 +643,9 @@ async function handleCommand(ctx, text) {
         const namePart = topic ? ` · ${topic}` : (project ? ` · ${project}` : "");
         return `${i + 1}. ${s.session_id.slice(0, 8)}...${namePart} · ${time}${source}${mark}`;
       });
+      lastSessionList.set(chatId, allSessions);
       await sendText(WECHAT_BOT_TOKEN, ctx.userId,
-        `历史会话：\n${lines.join("\n")}\n\n回复 /resume <id> 恢复`,
+        `历史会话：\n${lines.join("\n")}\n\n回复 /resume <序号> 恢复（如 /resume 3）`,
         ctx.contextToken,
       );
       break;
