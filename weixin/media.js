@@ -34,14 +34,45 @@ export function aesDecrypt(data, key) {
  * @param {string} aesKeyBase64 - base64 编码的 AES key
  * @returns {Promise<Buffer>} 解密后的文件数据
  */
-export async function downloadMedia(cdnUrl, aesKeyBase64) {
+export async function downloadMedia(cdnUrl, aesKeyInput) {
   const resp = await fetch(cdnUrl);
   if (!resp.ok) {
     throw new Error(`CDN download failed: ${resp.status}`);
   }
   const encrypted = Buffer.from(await resp.arrayBuffer());
-  const key = Buffer.from(aesKeyBase64, "base64");
+  const key = normalizeAesKey(aesKeyInput);
   return aesDecrypt(encrypted, key);
+}
+
+/**
+ * 将各种格式的 AES key 统一转为 16 字节 Buffer
+ * iLink 的 key 有三种格式：
+ *   1. 32 字符 hex string: "c80506fb..."  → Buffer.from(hex, "hex") → 16 bytes
+ *   2. base64(hex string): "YzgwNTA2..." → base64 decode → hex string → 同上
+ *   3. 直接 base64(16 bytes): 解码后刚好 16 字节
+ */
+function normalizeAesKey(input) {
+  if (Buffer.isBuffer(input) && input.length === 16) return input;
+
+  // 先尝试 base64 解码
+  let decoded = Buffer.from(input, "base64");
+
+  // 如果解码后是 16 字节，直接用
+  if (decoded.length === 16) return decoded;
+
+  // 如果解码后是 32 字节且全是 hex 字符，说明是 base64(hex)
+  const decodedStr = decoded.toString("utf-8");
+  if (decoded.length === 32 && /^[0-9a-f]{32}$/i.test(decodedStr)) {
+    return Buffer.from(decodedStr, "hex"); // 32 hex chars → 16 bytes
+  }
+
+  // 也许 input 本身就是 hex string
+  if (typeof input === "string" && /^[0-9a-f]{32}$/i.test(input)) {
+    return Buffer.from(input, "hex");
+  }
+
+  // 兜底：直接用解码结果（可能报错，让调用者知道）
+  return decoded;
 }
 
 /**
