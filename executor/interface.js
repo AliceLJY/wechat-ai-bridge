@@ -1,9 +1,7 @@
 import { createExecutor as createDirectExecutor } from "./direct.js";
-import { createExecutor as createLocalAgentExecutor } from "./local-agent.js";
 
 const EXECUTORS = {
   direct: createDirectExecutor,
-  "local-agent": createLocalAgentExecutor,
 };
 
 export const AVAILABLE_EXECUTORS = Object.keys(EXECUTORS);
