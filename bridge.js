@@ -636,12 +636,11 @@ async function handleCommand(ctx, text) {
       const lines = allSessions.map((s, i) => {
         const mark = current && current.session_id === s.session_id ? " ✦" : "";
         const time = new Date(s.last_active).toISOString().slice(5, 16).replace("T", " ");
-        const topic = (s.display_name && s.display_name !== "(空)") ? s.display_name.slice(0, 20) : "";
-        const project = s.project_name || "";
+        const topic = (s.display_name && s.display_name !== "(空)") ? s.display_name.slice(0, 30) : "";
         const isExternal = !ownedSessions.some(o => o.session_id === s.session_id);
         const source = isExternal ? " [CLI]" : "";
-        const namePart = topic ? ` · ${topic}` : (project ? ` · ${project}` : "");
-        return `${i + 1}. ${s.session_id.slice(0, 8)}...${namePart} · ${time}${source}${mark}`;
+        const label = topic || s.project_name || s.session_id.slice(0, 8);
+        return `${i + 1}. ${label} · ${time}${source}${mark}`;
       });
       lastSessionList.set(chatId, allSessions);
       await sendText(WECHAT_BOT_TOKEN, ctx.userId,
