@@ -426,8 +426,10 @@ async function processPrompt(ctx, prompt) {
     const durationMs = Date.now() - startTime;
     await progress.finish({ durationMs });
 
-    // 详细度 >=1 时发工具调用摘要
-    if (verboseLevel >= 1 && resultSuccess) {
+    // 微信不能编辑/删除消息，不发工具调用摘要（会永久留在聊天里）
+    // Telegram 版通过 editMessage 处理，微信只能跳过
+    if (verboseLevel >= 2 && resultSuccess) {
+      // 仅 verbose=2 时才发摘要（用户主动要求详细模式）
       const summary = progress.getSummary(durationMs);
       if (summary) await sendText(WECHAT_BOT_TOKEN, ctx.userId, summary, ctx.contextToken).catch(() => {});
     }
@@ -476,6 +478,11 @@ async function processPrompt(ctx, prompt) {
     // base64 图片回传（AI 直接返回的图片数据）
     if (resultSuccess && capturedImages.length > 0) {
       for (const img of capturedImages) {
+        // 跳过工具结果图片（如 Read 读用户发的图），只发 AI 主动生成的图
+        if (img.source === "tool_result") {
+          console.log(`[Bridge] 跳过工具结果图片 (toolUseId: ${img.toolUseId || "?"})`);
+          continue;
+        }
         try {
           const buf = Buffer.from(img.data, "base64");
           if (buf.length > 10 * 1024 * 1024) continue;

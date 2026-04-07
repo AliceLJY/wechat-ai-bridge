@@ -310,6 +310,7 @@ export function createAdapter(config = {}) {
                       data: part.source.data,
                       mediaType: part.source.media_type || "image/png",
                       toolUseId: block.tool_use_id,
+                      source: "tool_result",
                     };
                   }
                 }
