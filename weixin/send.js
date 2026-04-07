@@ -117,7 +117,7 @@ export async function sendImage(token, toUserId, contextToken, imageRef) {
           image_item: {
             media: {
               encrypt_query_param: imageRef.encrypt_query_param,
-              aes_key: Buffer.from(imageRef.aes_key, "hex").toString("base64"),
+              aes_key: Buffer.from(imageRef.aes_key, "utf-8").toString("base64"),
               encrypt_type: 1,
             },
             mid_size: imageRef.file_size_encrypted || imageRef.file_size,
