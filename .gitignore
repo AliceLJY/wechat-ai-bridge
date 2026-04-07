@@ -2,6 +2,8 @@ node_modules/
 config.json
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 *.log
 .env
 .wechat-ai-bridge/
