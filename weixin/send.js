@@ -112,7 +112,17 @@ export async function sendImage(token, toUserId, contextToken, imageRef) {
         message_type: MessageType.BOT,
         message_state: MessageState.FINISH,
         context_token: contextToken,
-        item_list: [{ type: ItemType.IMAGE, image_item: imageRef }],
+        item_list: [{
+          type: ItemType.IMAGE,
+          image_item: {
+            aeskey: imageRef.aes_key,
+            media: {
+              encrypt_query_param: imageRef.encrypt_query_param,
+              aes_key: Buffer.from(imageRef.aes_key, "hex").toString("base64"),
+              file_key: imageRef.file_key,
+            },
+          },
+        }],
       },
     }, token);
     return resp;
@@ -131,7 +141,19 @@ export async function sendFile(token, toUserId, contextToken, fileRef) {
         message_type: MessageType.BOT,
         message_state: MessageState.FINISH,
         context_token: contextToken,
-        item_list: [{ type: ItemType.FILE, file_item: fileRef }],
+        item_list: [{
+          type: ItemType.FILE,
+          file_item: {
+            aeskey: fileRef.aes_key,
+            file_name: fileRef.file_name,
+            file_size: fileRef.file_size,
+            media: {
+              encrypt_query_param: fileRef.encrypt_query_param,
+              aes_key: Buffer.from(fileRef.aes_key, "hex").toString("base64"),
+              file_key: fileRef.file_key,
+            },
+          },
+        }],
       },
     }, token);
     return resp;

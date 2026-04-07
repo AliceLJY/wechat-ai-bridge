@@ -1,8 +1,8 @@
 // iLink CDN 媒体处理
 // 上传/下载 + AES-128-ECB 加解密
 
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
-import { iLinkPost, cdnUpload } from "./api.js";
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from "crypto";
+import { iLinkPost } from "./api.js";
 
 const CDN_BASE = "https://novac2c.cdn.weixin.qq.com/c2c";
 
@@ -83,36 +83,68 @@ function normalizeAesKey(input) {
  * @param {number} fileType - 1=图片 2=语音 3=文件 4=视频
  * @returns {Promise<object>} CDN 引用参数（用于 sendmessage）
  */
-export async function uploadMedia(token, data, filename, fileType = 1) {
-  // 生成随机 AES key
-  const aesKey = randomBytes(16);
-  const aesKeyBase64 = aesKey.toString("base64");
+/**
+ * 加密并上传媒体文件到 CDN
+ * @param {string} token - bot_token
+ * @param {Buffer} data - 原始文件数据
+ * @param {string} filename - 文件名
+ * @param {number} mediaType - 1=图片 2=视频 3=文件 4=语音
+ * @param {string} toUserId - 接收方用户 ID
+ * @returns {Promise<object>} CDN 引用参数（用于 sendmessage）
+ */
+export async function uploadMedia(token, data, filename, mediaType = 1, toUserId = "") {
+  // 生成随机 filekey 和 aeskey（均为 32 字符 hex）
+  const filekey = randomBytes(16).toString("hex");
+  const aeskeyHex = randomBytes(16).toString("hex");
+  const aesKey = Buffer.from(aeskeyHex, "hex"); // 16 bytes
 
-  // 加密
+  // 原始文件信息
+  const rawsize = data.length;
+  const rawfilemd5 = createHash("md5").update(data).digest("hex");
+
+  // AES-128-ECB 加密
   const encrypted = aesEncrypt(data, aesKey);
+  const filesize = encrypted.length;
 
-  // 获取预签名上传 URL
+  // 获取上传参数
   const uploadResp = await iLinkPost("/ilink/bot/getuploadurl", {
-    file_type: fileType,
-    file_name: filename,
-    file_size: encrypted.length,
+    filekey,
+    media_type: mediaType,
+    to_user_id: toUserId,
+    rawsize,
+    rawfilemd5,
+    filesize,
+    no_need_thumb: true,
+    aeskey: aeskeyHex,
+    base_info: { channel_version: "1.0.2" },
   }, token);
 
-  if (!uploadResp.upload_url) {
-    throw new Error(`getuploadurl failed: ${JSON.stringify(uploadResp).slice(0, 200)}`);
+  const uploadParam = uploadResp.upload_param;
+  if (!uploadParam) {
+    throw new Error(`getuploadurl failed: ${JSON.stringify(uploadResp).slice(0, 300)}`);
   }
 
-  // 上传到 CDN
-  await cdnUpload(uploadResp.upload_url, encrypted);
+  // 上传密文到 CDN
+  const uploadUrl = `${CDN_BASE}/upload?encrypted_query_param=${encodeURIComponent(uploadParam)}&filekey=${filekey}`;
+  const cdnResp = await fetch(uploadUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: encrypted,
+  });
+  if (!cdnResp.ok) {
+    throw new Error(`CDN upload failed: ${cdnResp.status}`);
+  }
 
-  // 返回 CDN 引用参数
+  // 从响应头获取下载参数
+  const downloadParam = cdnResp.headers.get("x-encrypted-param") || "";
+
+  // 返回 sendmessage 需要的引用参数
   return {
-    aes_key: aesKeyBase64,
-    file_id: uploadResp.file_id || "",
-    file_size: data.length,
+    aes_key: aeskeyHex,
+    file_key: filekey,
+    file_size: rawsize,
     file_name: filename,
-    // 以下字段可能因 API 版本不同而变化
-    ...(uploadResp.download_url ? { download_url: uploadResp.download_url } : {}),
+    encrypt_query_param: downloadParam || uploadParam,
   };
 }
 
