@@ -16,6 +16,7 @@ import {
   deleteChatEffort,
   getChatBackend,
   setChatBackend,
+  sessionBelongsToChat,
 } from "./sessions.js";
 import {
   createTask,
@@ -110,6 +111,21 @@ function resolveBackend(chatId, backendName = null) {
 
 function getAdapter(chatId) { return resolveBackend(chatId).adapter; }
 function getBackendName(chatId) { return resolveBackend(chatId).backendName; }
+
+// ── 外部会话扫描（CLI / 其他 bridge 的会话）──
+async function getExternalSessionsForChat(chatId, backendName, adapter, limit = 10) {
+  if (!adapter?.listSessions) return [];
+  const scanned = await adapter.listSessions(limit * 3);
+  const external = [];
+  for (const session of scanned) {
+    const sessionId = session.session_id || session.sessionId;
+    if (!sessionId) continue;
+    if (sessionBelongsToChat(chatId, sessionId, backendName, "owned")) continue;
+    external.push(session);
+    if (external.length >= limit) break;
+  }
+  return external;
+}
 
 const executor = createExecutor(EXECUTOR_MODE, { resolveBackend });
 
@@ -590,17 +606,29 @@ async function handleCommand(ctx, text) {
 
     case "/sessions": {
       const backend = getBackendName(chatId);
-      const sessions = recentSessions(10, { chatId, backend, ownership: "owned" });
-      if (!sessions.length) {
+      const adapter = getAdapter(chatId);
+      const ownedSessions = recentSessions(10, { chatId, backend, ownership: "owned" });
+      const externalSessions = await getExternalSessionsForChat(chatId, backend, adapter, 10);
+      // 合并去重
+      const seen = new Set(ownedSessions.map(s => s.session_id));
+      const allSessions = [...ownedSessions];
+      for (const s of externalSessions) {
+        if (!seen.has(s.session_id)) { allSessions.push(s); seen.add(s.session_id); }
+      }
+      if (!allSessions.length) {
         await sendText(WECHAT_BOT_TOKEN, ctx.userId, "没有找到历史会话。", ctx.contextToken);
         break;
       }
       const current = getSession(chatId);
-      const lines = sessions.map((s, i) => {
+      const lines = allSessions.map((s, i) => {
         const mark = current && current.session_id === s.session_id ? " ✦" : "";
         const time = new Date(s.last_active).toISOString().slice(5, 16).replace("T", " ");
-        const name = s.display_name ? ` · ${s.display_name.slice(0, 20)}` : "";
-        return `${i + 1}. ${s.session_id.slice(0, 8)}...${name} · ${time}${mark}`;
+        const topic = (s.display_name && s.display_name !== "(空)") ? s.display_name.slice(0, 20) : "";
+        const project = s.project_name || "";
+        const isExternal = !ownedSessions.some(o => o.session_id === s.session_id);
+        const source = isExternal ? " [CLI]" : "";
+        const namePart = topic ? ` · ${topic}` : (project ? ` · ${project}` : "");
+        return `${i + 1}. ${s.session_id.slice(0, 8)}...${namePart} · ${time}${source}${mark}`;
       });
       await sendText(WECHAT_BOT_TOKEN, ctx.userId,
         `历史会话：\n${lines.join("\n")}\n\n回复 /resume <id> 恢复`,

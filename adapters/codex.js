@@ -117,10 +117,20 @@ export function createAdapter(config = {}) {
     return source || originator || "";
   }
 
+  // 剥离 bridge hint / 图片标记等前缀
+  const BRIDGE_HINT_RE = /^\[系统提示:.*?\]\s*/s;
+  const FILE_TAG_RE = /\n?\[(?:图片文件|文件):.*$/s;
+  function cleanUserTopic(raw) {
+    if (!raw) return "";
+    return raw.replace(BRIDGE_HINT_RE, "").replace(FILE_TAG_RE, "").trim();
+  }
+
   async function parseSessionFile(fileInfo) {
-    let topic = "";
+    let firstTopic = "";
+    let lastTopic = "";
     let sessionMeta = null;
 
+    // 单次流式扫描：取 sessionMeta + firstTopic + lastTopic
     try {
       const stream = createReadStream(fileInfo.path, { encoding: "utf8" });
       const rl = createInterface({ input: stream });
@@ -130,19 +140,25 @@ export function createAdapter(config = {}) {
           if (!sessionMeta && d.type === "session_meta" && d.payload) {
             sessionMeta = d.payload;
           }
-          if (!topic && d.type === "event_msg" && d.payload?.type === "user_message") {
-            const msg = String(d.payload.message || "").trim();
+          // codex event_msg 格式
+          if (d.type === "event_msg" && d.payload?.type === "user_message") {
+            const msg = cleanUserTopic(String(d.payload.message || ""));
             if (msg && !/^\/[a-z]/i.test(msg)) {
-              topic = msg.slice(0, 80);
+              if (!firstTopic) firstTopic = msg.slice(0, 80);
+              lastTopic = msg.slice(0, 80);
             }
           }
-          if (!topic && d.message?.role === "user") {
+          // claude message 格式
+          if (d.message?.role === "user") {
             const content = d.message.content;
-            if (typeof content === "string" && content.trim()) {
-              topic = content.trim().slice(0, 80);
+            if (typeof content === "string") {
+              const cleaned = cleanUserTopic(content);
+              if (cleaned) {
+                if (!firstTopic) firstTopic = cleaned.slice(0, 80);
+                lastTopic = cleaned.slice(0, 80);
+              }
             }
           }
-          if (sessionMeta && topic) break;
         } catch { /* skip */ }
       }
       rl.close();
@@ -152,7 +168,7 @@ export function createAdapter(config = {}) {
     const resolvedCwd = sessionMeta?.cwd || cwd;
     return {
       session_id: fileInfo.sessionId,
-      display_name: topic || "(空)",
+      display_name: lastTopic || firstTopic || "(空)",
       last_active: fileInfo.mtime,
       backend: "codex",
       cwd: resolvedCwd,
