@@ -35,7 +35,7 @@ Send a message in WeChat. Get a full Claude Code response — with Bash, Read, W
 你: /new              ← Start a fresh session
 你: /sessions         ← List recent sessions
 你: /resume 3         ← Pick up where you left off
-你: /peek 5           ← Read-only preview
+你: /backend codex    ← Switch backend
 你: /model            ← Switch models (reply with number)
 ```
 
@@ -56,14 +56,16 @@ Switch backends per chat with `/backend`.
 When the AI needs permission to run a tool:
 
 ```
-🔧 需要授权: Bash
-命令: git push origin main
+🔒 工具审批
 
-回复数字选择：
-1. ✅ 允许（仅本次）
-2. ✅ 始终允许（本会话）
-3. ❌ 拒绝
-4. 🔓 YOLO（全部放行）
+工具: Bash
+git push origin main
+
+请回复数字:
+1. 允许
+2. 拒绝
+3. 始终允许 "Bash"
+4. YOLO（全部允许）
 ```
 
 Reply `1`, `2`, `3`, or `4`. No buttons needed — just text.
@@ -91,9 +93,8 @@ Reply `1`, `2`, `3`, or `4`. No buttons needed — just text.
 ```bash
 git clone https://github.com/AliceLJY/wechat-ai-bridge.git
 cd wechat-ai-bridge
-bun install
+npm install              # or: bun install
 bun run bootstrap --backend claude
-bun run setup --backend claude
 bun run check --backend claude
 bun run start --backend claude
 ```
@@ -112,15 +113,13 @@ All commands are plain text — just type and send:
 | `/new` | Start a new session |
 | `/cancel` | Abort the running task |
 | `/sessions` | List recent sessions |
-| `/peek <id>` | Read-only preview a session |
 | `/resume <id>` | Resume an owned session |
-| `/model` | Pick a model (reply with number) |
-| `/effort` | Set thinking depth |
+| `/backend [name]` | Switch backend (claude/codex/gemini) |
+| `/model [name]` | Pick a model (reply with number) |
+| `/effort [level]` | Set thinking depth |
 | `/status` | Show backend, model, cwd, session |
-| `/dir` | Switch working directory |
-| `/tasks` | Show recent task history |
+| `/dir [path]` | Switch working directory |
 | `/verbose 0\|1\|2` | Change progress verbosity |
-| `/doctor` | Run health check |
 
 ---
 
@@ -146,10 +145,10 @@ The bridge uses WeChat's official **iLink Bot API** — the same protocol behind
 | Feature | cc-weixin | wechat-acp | This project |
 |---------|-----------|------------|-------------|
 | AI backends | Claude only | 6 via ACP | Claude + Codex + Gemini (native SDK) |
-| Session management | None | None | `/new` `/resume` `/sessions` `/peek` |
+| Session management | None | None | `/new` `/resume` `/sessions` `/backend` |
 | Tool approval | Auto-allow | Auto-allow | Interactive (1/2/3/4 choice) |
 | Model switching | Hardcoded | Per-preset | `/model` with numbered selection |
-| File relay (in) | Text only | Images+files | Images + files + voice transcription |
+| File relay (in) | Text only | Images+files | Images + files (AES-128-ECB decrypted) |
 | File relay (out) | None | None | Auto-detect file paths + CDN upload |
 | Rate limiting | None | None | Per-user sliding window |
 | Idle monitoring | None | None | Watchdog + auto-reset |

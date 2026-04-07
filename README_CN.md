@@ -35,7 +35,7 @@
 你: /new              ← 新建会话
 你: /sessions         ← 查看历史会话
 你: /resume 3         ← 恢复之前的进度
-你: /peek 5           ← 只读预览
+你: /backend codex    ← 切后端
 你: /model            ← 切模型（回复数字选择）
 ```
 
@@ -56,14 +56,16 @@
 AI 需要执行工具时：
 
 ```
-🔧 需要授权: Bash
-命令: git push origin main
+🔒 工具审批
 
-回复数字选择：
-1. ✅ 允许（仅本次）
-2. ✅ 始终允许（本会话）
-3. ❌ 拒绝
-4. 🔓 YOLO（全部放行）
+工具: Bash
+git push origin main
+
+请回复数字:
+1. 允许
+2. 拒绝
+3. 始终允许 "Bash"
+4. YOLO（全部允许）
 ```
 
 回复 `1` `2` `3` 或 `4`，不需要按钮，纯文字就行。
@@ -91,9 +93,8 @@ AI 需要执行工具时：
 ```bash
 git clone https://github.com/AliceLJY/wechat-ai-bridge.git
 cd wechat-ai-bridge
-bun install
+npm install              # 或者: bun install
 bun run bootstrap --backend claude
-bun run setup --backend claude
 bun run check --backend claude
 bun run start --backend claude
 ```
@@ -112,15 +113,13 @@ bun run start --backend claude
 | `/new` | 新建会话 |
 | `/cancel` | 中断正在执行的任务 |
 | `/sessions` | 查看最近会话 |
-| `/peek <id>` | 只读预览某个会话 |
 | `/resume <id>` | 恢复已有会话 |
-| `/model` | 选模型（回复数字） |
-| `/effort` | 设置思考深度 |
+| `/backend [name]` | 切换后端（claude/codex/gemini） |
+| `/model [name]` | 选模型（回复数字） |
+| `/effort [level]` | 设置思考深度 |
 | `/status` | 查看后端、模型、目录、会话 |
-| `/dir` | 切换工作目录 |
-| `/tasks` | 查看任务记录 |
+| `/dir [path]` | 切换工作目录 |
 | `/verbose 0\|1\|2` | 调整进度详细度 |
-| `/doctor` | 健康检查 |
 
 ---
 
@@ -146,10 +145,10 @@ Bridge 使用微信官方 **iLink Bot API**——和 OpenClaw 微信集成用的
 | 功能 | cc-weixin | wechat-acp | 本项目 |
 |------|-----------|------------|--------|
 | AI 后端 | 仅 Claude | 6 种 (ACP) | Claude + Codex + Gemini（原生 SDK） |
-| 会话管理 | 无 | 无 | `/new` `/resume` `/sessions` `/peek` |
+| 会话管理 | 无 | 无 | `/new` `/resume` `/sessions` `/backend` |
 | 工具审批 | 全部自动放行 | 全部自动放行 | 交互式（1/2/3/4 选择） |
 | 模型切换 | 写死 | 按 preset | `/model` 数字选择 |
-| 文件传入 | 仅文字 | 图片+文件 | 图片 + 文件 + 语音转文字 |
+| 文件传入 | 仅文字 | 图片+文件 | 图片 + 文件（AES-128-ECB 解密） |
 | 文件传出 | 无 | 无 | 自动检测路径 + CDN 上传 |
 | 限流 | 无 | 无 | 每用户滑动窗口 |
 | 超时检测 | 无 | 无 | 看门狗 + 自动重置 |
