@@ -22,12 +22,8 @@ export function createProgressTracker(token, toUserId, contextToken, verboseLeve
   let finished = false;
 
   async function start() {
-    // 发送"处理中"提示
-    try {
-      await sendText(token, toUserId, `⏳ ${backendLabel} 正在处理...`, contextToken);
-    } catch {
-      // 发送失败不影响主流程
-    }
+    // 微信不能编辑/删除消息，不发文字进度提示（会永久留在聊天里）
+    // 只用 typing 心跳（会自动消失）
 
     // Typing 心跳
     typingInterval = setInterval(() => {
