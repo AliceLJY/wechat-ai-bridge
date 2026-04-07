@@ -39,7 +39,7 @@
 你: /model            ← 切模型（回复数字选择）
 ```
 
-会话持久化在 SQLite 里，重启、断网、重开机都不丢。
+会话持久化在 SQLite 里，重启、断网、重开机都不丢。`/sessions` 显示**所有** CC 会话——包括终端 CLI 和其他 bridge 创建的——以最后一句话为标题。序号恢复：`/resume 3`。
 
 ### 多后端支持
 
@@ -113,7 +113,7 @@ bun run start --backend claude
 | `/new` | 新建会话 |
 | `/cancel` | 中断正在执行的任务 |
 | `/sessions` | 查看最近会话 |
-| `/resume <id>` | 恢复已有会话 |
+| `/resume <序号\|id>` | 按序号或 ID 恢复会话 |
 | `/backend [name]` | 切换后端（claude/codex/gemini） |
 | `/model [name]` | 选模型（回复数字） |
 | `/effort [level]` | 设置思考深度 |
@@ -153,6 +153,7 @@ Bridge 使用微信官方 **iLink Bot API**——和 OpenClaw 微信集成用的
 | 限流 | 无 | 无 | 每用户滑动窗口 |
 | 超时检测 | 无 | 无 | 看门狗 + 自动重置 |
 | 消息合并 | 无 | 无 | FlushGate（800ms 合并） |
+| 跨平台会话 | 无 | 无 | 看到所有 CC 会话（CLI + 其他 bridge） |
 | 代码转文件 | 无 | 无 | >60% 代码 → 文件附件 |
 
 ---

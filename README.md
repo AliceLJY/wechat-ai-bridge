@@ -39,7 +39,7 @@ Send a message in WeChat. Get a full Claude Code response — with Bash, Read, W
 你: /model            ← Switch models (reply with number)
 ```
 
-Sessions persist in SQLite across restarts. Pick up after a reboot, a network drop, or a flight.
+Sessions persist in SQLite across restarts. Pick up after a reboot, a network drop, or a flight. `/sessions` shows **all** CC sessions — including ones created from terminal CLI or other bridges — with the last user message as the title. Resume by number: `/resume 3`.
 
 ### Multi-Backend Support
 
@@ -113,7 +113,7 @@ All commands are plain text — just type and send:
 | `/new` | Start a new session |
 | `/cancel` | Abort the running task |
 | `/sessions` | List recent sessions |
-| `/resume <id>` | Resume an owned session |
+| `/resume <#\|id>` | Resume by sequence number or session ID |
 | `/backend [name]` | Switch backend (claude/codex/gemini) |
 | `/model [name]` | Pick a model (reply with number) |
 | `/effort [level]` | Set thinking depth |
@@ -153,6 +153,7 @@ The bridge uses WeChat's official **iLink Bot API** — the same protocol behind
 | Rate limiting | None | None | Per-user sliding window |
 | Idle monitoring | None | None | Watchdog + auto-reset |
 | Message batching | None | None | FlushGate (800ms merge) |
+| Cross-platform sessions | None | None | See all CC sessions (CLI + other bridges) |
 | Code as file | None | None | >60% code → file attachment |
 
 ---
