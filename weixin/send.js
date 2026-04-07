@@ -148,7 +148,7 @@ export async function sendFile(token, toUserId, contextToken, fileRef) {
             file_size: fileRef.file_size,
             media: {
               encrypt_query_param: fileRef.encrypt_query_param,
-              aes_key: Buffer.from(fileRef.aes_key, "hex").toString("base64"),
+              aes_key: Buffer.from(fileRef.aes_key, "utf-8").toString("base64"),
               encrypt_type: 1,
             },
           },
