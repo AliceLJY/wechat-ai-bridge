@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // WeChat → AI Bridge（多后端：Claude Agent SDK / Codex SDK / Gemini）
 
-import { mkdirSync, existsSync, readFileSync } from "fs";
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from "fs";
 import { basename, join } from "path";
 import {
   getSession,
@@ -36,8 +36,9 @@ import { createDirManager } from "./dir-manager.js";
 import { createIdleMonitor } from "./idle-monitor.js";
 import { protectFileReferences } from "./file-ref-protect.js";
 import { createMonitor } from "./weixin/monitor.js";
-import { sendText, sendLongText } from "./weixin/send.js";
+import { sendText, sendLongText, sendImage, sendFile } from "./weixin/send.js";
 import { ItemType } from "./weixin/types.js";
+import { downloadImage, downloadFile as downloadMediaFile, uploadMedia } from "./weixin/media.js";
 
 // 防止嵌套检测
 delete process.env.CLAUDECODE;
@@ -302,6 +303,7 @@ async function processPrompt(ctx, prompt) {
     let capturedSessionId = sessionId || null;
     let resultText = "";
     let resultSuccess = true;
+    const capturedImages = [];  // { data, mediaType }
     const capturedFiles = [];
 
     const abortController = new AbortController();
@@ -355,7 +357,10 @@ async function processPrompt(ctx, prompt) {
           });
         }
 
-        // 收集文件
+        // 收集图片/文件
+        if (event.type === "image" && capturedImages.length < 10) {
+          capturedImages.push(event);
+        }
         if (event.type === "file_persisted") {
           capturedFiles.push({ filePath: event.filename, source: "persisted" });
         }
@@ -410,13 +415,12 @@ async function processPrompt(ctx, prompt) {
       if (summary) await sendText(WECHAT_BOT_TOKEN, ctx.userId, summary, ctx.contextToken).catch(() => {});
     }
 
-    // 文件回传（Phase 2 实现 CDN 上传，Phase 1 先列出路径）
+    // 文件/图片回传：CDN 上传 + 发送
     if (resultSuccess && capturedFiles.length > 0) {
       const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
-      const DOC_EXTS = new Set([".pdf", ".docx", ".xlsx", ".csv", ".html", ".txt", ".md"]);
+      const DOC_EXTS = new Set([".pdf", ".docx", ".xlsx", ".csv", ".html", ".txt", ".md", ".json", ".js", ".ts", ".py", ".sh", ".yaml", ".yml", ".xml", ".log", ".zip", ".tar", ".gz"]);
       const HOME = process.env.HOME || "";
       const sentPaths = new Set();
-      const pendingFiles = [];
       for (const f of capturedFiles) {
         if (!f.filePath) continue;
         const resolved = f.filePath.startsWith("~/") ? f.filePath.replace("~", HOME) : f.filePath;
@@ -425,11 +429,39 @@ async function processPrompt(ctx, prompt) {
         if (!IMAGE_EXTS.has(ext) && !DOC_EXTS.has(ext)) continue;
         if (!existsSync(resolved)) continue;
         sentPaths.add(resolved);
-        pendingFiles.push(basename(resolved));
-        // TODO Phase 2: CDN upload + sendImage/sendFile
+        const fileName = basename(resolved);
+        console.log(`[Bridge] 发送文件: ${fileName} (来源: ${f.source})`);
+        try {
+          const fileData = readFileSync(resolved);
+          if (fileData.length > 20 * 1024 * 1024) {
+            console.log(`[Bridge] 跳过大文件: ${fileName} (${Math.round(fileData.length / 1024 / 1024)}MB)`);
+            continue;
+          }
+          if (IMAGE_EXTS.has(ext)) {
+            const ref = await uploadMedia(WECHAT_BOT_TOKEN, fileData, fileName, 1);
+            await sendImage(WECHAT_BOT_TOKEN, ctx.userId, ctx.contextToken, ref);
+          } else {
+            const ref = await uploadMedia(WECHAT_BOT_TOKEN, fileData, fileName, 3);
+            await sendFile(WECHAT_BOT_TOKEN, ctx.userId, ctx.contextToken, ref);
+          }
+        } catch (e) {
+          console.error(`[Bridge] 文件发送失败 (${fileName}): ${e.message}`);
+        }
       }
-      if (pendingFiles.length > 0) {
-        console.log(`[Bridge] ${pendingFiles.length} files detected: ${pendingFiles.join(", ")}`);
+    }
+
+    // base64 图片回传（AI 直接返回的图片数据）
+    if (resultSuccess && capturedImages.length > 0) {
+      for (const img of capturedImages) {
+        try {
+          const buf = Buffer.from(img.data, "base64");
+          if (buf.length > 10 * 1024 * 1024) continue;
+          const ext = (img.mediaType || "image/png").split("/")[1] || "png";
+          const ref = await uploadMedia(WECHAT_BOT_TOKEN, buf, `output.${ext}`, 1);
+          await sendImage(WECHAT_BOT_TOKEN, ctx.userId, ctx.contextToken, ref);
+        } catch (e) {
+          console.error(`[Bridge] base64 图片发送失败: ${e.message}`);
+        }
       }
     }
 
@@ -720,18 +752,54 @@ async function onMessage(msg) {
 
   const text = extractText(msg);
 
-  // 非文本消息：检测类型并提示
+  // 非文本消息：下载媒体文件并注入 prompt
   if (!text) {
-    const types = (msg.item_list || []).map(i => i.type);
-    if (types.includes(ItemType.IMAGE)) {
-      await sendText(WECHAT_BOT_TOKEN, userId, "📷 收到图片，但图片传输功能还在开发中（Phase 2）。目前只支持文字对话。", contextToken).catch(() => {});
-    } else if (types.includes(ItemType.VOICE)) {
-      await sendText(WECHAT_BOT_TOKEN, userId, "🎤 收到语音，语音功能还在开发中。目前只支持文字对话。", contextToken).catch(() => {});
-    } else if (types.includes(ItemType.FILE)) {
-      await sendText(WECHAT_BOT_TOKEN, userId, "📎 收到文件，文件传输功能还在开发中（Phase 2）。目前只支持文字对话。", contextToken).catch(() => {});
-    } else if (types.includes(ItemType.VIDEO)) {
-      await sendText(WECHAT_BOT_TOKEN, userId, "🎬 收到视频，暂不支持视频处理。", contextToken).catch(() => {});
+    const items = msg.item_list || [];
+    let mediaPrompt = "";
+
+    for (const item of items) {
+      if (item.type === ItemType.IMAGE) {
+        try {
+          const result = await downloadImage(item);
+          if (result) {
+            const localPath = join(FILE_DIR, `${Date.now()}-${result.filename}`);
+            writeFileSync(localPath, result.data);
+            mediaPrompt += `请看这张图片\n\n[图片文件: ${localPath}]\n`;
+            console.log(`[media] 图片已下载: ${localPath} (${result.data.length} bytes)`);
+          } else {
+            mediaPrompt += "[收到图片但下载失败]\n";
+          }
+        } catch (err) {
+          console.error(`[media] 图片下载失败: ${err.message}`);
+          mediaPrompt += "[收到图片但下载失败]\n";
+        }
+      } else if (item.type === ItemType.FILE) {
+        try {
+          const result = await downloadMediaFile(item);
+          if (result) {
+            const localPath = join(FILE_DIR, `${Date.now()}-${result.filename}`);
+            writeFileSync(localPath, result.data);
+            mediaPrompt += `请处理这个文件: ${result.filename}\n\n[文件: ${localPath}]\n`;
+            console.log(`[media] 文件已下载: ${localPath} (${result.data.length} bytes)`);
+          } else {
+            mediaPrompt += "[收到文件但下载失败]\n";
+          }
+        } catch (err) {
+          console.error(`[media] 文件下载失败: ${err.message}`);
+          mediaPrompt += "[收到文件但下载失败]\n";
+        }
+      } else if (item.type === ItemType.VOICE) {
+        await sendText(WECHAT_BOT_TOKEN, userId, "🎤 语音暂不支持，请发文字或图片。", contextToken).catch(() => {});
+        return;
+      } else if (item.type === ItemType.VIDEO) {
+        await sendText(WECHAT_BOT_TOKEN, userId, "🎬 视频暂不支持，请发文字或图片。", contextToken).catch(() => {});
+        return;
+      }
     }
+
+    if (!mediaPrompt) return;
+    // 有图片/文件内容就提交给 AI
+    await submitAndWait(ctx, mediaPrompt.trim());
     return;
   }
 
