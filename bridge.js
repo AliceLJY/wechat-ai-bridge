@@ -438,10 +438,10 @@ async function processPrompt(ctx, prompt) {
             continue;
           }
           if (IMAGE_EXTS.has(ext)) {
-            const ref = await uploadMedia(WECHAT_BOT_TOKEN, fileData, fileName, 1);
+            const ref = await uploadMedia(WECHAT_BOT_TOKEN, fileData, fileName, 1, ctx.userId);
             await sendImage(WECHAT_BOT_TOKEN, ctx.userId, ctx.contextToken, ref);
           } else {
-            const ref = await uploadMedia(WECHAT_BOT_TOKEN, fileData, fileName, 3);
+            const ref = await uploadMedia(WECHAT_BOT_TOKEN, fileData, fileName, 3, ctx.userId);
             await sendFile(WECHAT_BOT_TOKEN, ctx.userId, ctx.contextToken, ref);
           }
         } catch (e) {
@@ -457,7 +457,7 @@ async function processPrompt(ctx, prompt) {
           const buf = Buffer.from(img.data, "base64");
           if (buf.length > 10 * 1024 * 1024) continue;
           const ext = (img.mediaType || "image/png").split("/")[1] || "png";
-          const ref = await uploadMedia(WECHAT_BOT_TOKEN, buf, `output.${ext}`, 1);
+          const ref = await uploadMedia(WECHAT_BOT_TOKEN, buf, `output.${ext}`, 1, ctx.userId);
           await sendImage(WECHAT_BOT_TOKEN, ctx.userId, ctx.contextToken, ref);
         } catch (e) {
           console.error(`[Bridge] base64 图片发送失败: ${e.message}`);
