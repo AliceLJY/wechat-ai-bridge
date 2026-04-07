@@ -143,6 +143,7 @@ export async function uploadMedia(token, data, filename, mediaType = 1, toUserId
     aes_key: aeskeyHex,
     file_key: filekey,
     file_size: rawsize,
+    file_size_encrypted: filesize,
     file_name: filename,
     encrypt_query_param: downloadParam || uploadParam,
   };

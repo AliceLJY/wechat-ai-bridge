@@ -115,12 +115,12 @@ export async function sendImage(token, toUserId, contextToken, imageRef) {
         item_list: [{
           type: ItemType.IMAGE,
           image_item: {
-            aeskey: imageRef.aes_key,
             media: {
               encrypt_query_param: imageRef.encrypt_query_param,
               aes_key: Buffer.from(imageRef.aes_key, "hex").toString("base64"),
-              file_key: imageRef.file_key,
+              encrypt_type: 1,
             },
+            mid_size: imageRef.file_size_encrypted || imageRef.file_size,
           },
         }],
       },
@@ -144,13 +144,12 @@ export async function sendFile(token, toUserId, contextToken, fileRef) {
         item_list: [{
           type: ItemType.FILE,
           file_item: {
-            aeskey: fileRef.aes_key,
             file_name: fileRef.file_name,
             file_size: fileRef.file_size,
             media: {
               encrypt_query_param: fileRef.encrypt_query_param,
               aes_key: Buffer.from(fileRef.aes_key, "hex").toString("base64"),
-              file_key: fileRef.file_key,
+              encrypt_type: 1,
             },
           },
         }],
