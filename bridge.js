@@ -14,6 +14,8 @@ import {
   getChatEffort,
   setChatEffort,
   deleteChatEffort,
+  getChatBackend,
+  setChatBackend,
 } from "./sessions.js";
 import {
   createTask,
@@ -99,7 +101,9 @@ const flushGate = createFlushGate({
 });
 
 function resolveBackend(chatId, backendName = null) {
-  const effective = backendName && adapters[backendName] ? backendName : getFallbackBackend();
+  // 优先用指定的 → 再用 per-chat 设置 → 最后用默认
+  const chosen = backendName || getChatBackend(chatId) || null;
+  const effective = chosen && adapters[chosen] ? chosen : getFallbackBackend();
   return { backendName: effective, adapter: adapters[effective] || null };
 }
 
@@ -497,6 +501,7 @@ async function handleCommand(ctx, text) {
         "/resume <id> — 恢复指定会话",
         "",
         "⚙️ 设置",
+        "/backend [name] — 切换后端 (claude/codex/gemini)",
         "/model [name] — 切换模型",
         "/effort [level] — 切换思考深度",
         "/dir [path] — 切换工作目录",
@@ -673,6 +678,28 @@ async function handleCommand(ctx, text) {
         await sendText(WECHAT_BOT_TOKEN, ctx.userId, `工作目录: ${dirManager.current(chatId)}`, ctx.contextToken);
       } else {
         await sendText(WECHAT_BOT_TOKEN, ctx.userId, `当前: ${dirManager.current(chatId)}\n用法: /dir <path>`, ctx.contextToken);
+      }
+      break;
+    }
+
+    case "/backend": {
+      if (args && ACTIVE_BACKENDS.includes(args.toLowerCase())) {
+        const target = args.toLowerCase();
+        setChatBackend(chatId, target);
+        deleteSession(chatId); // 切后端要开新 session
+        const adapter = adapters[target];
+        await sendText(WECHAT_BOT_TOKEN, ctx.userId, `${adapter.icon} 已切换到 ${adapter.label}，下条消息开启新会话。`, ctx.contextToken);
+      } else {
+        const current = getBackendName(chatId);
+        const lines = ACTIVE_BACKENDS.map(b => {
+          const a = adapters[b];
+          const mark = b === current ? " ✦" : "";
+          return `${a.icon} ${b} — ${a.label}${mark}`;
+        });
+        await sendText(WECHAT_BOT_TOKEN, ctx.userId,
+          `当前后端: ${current}\n可用:\n${lines.join("\n")}\n\n用法: /backend claude 或 /backend codex`,
+          ctx.contextToken,
+        );
       }
       break;
     }
