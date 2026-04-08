@@ -443,6 +443,8 @@ async function processPrompt(ctx, prompt) {
       for (const f of capturedFiles) {
         if (!f.filePath) continue;
         const resolved = f.filePath.startsWith("~/") ? f.filePath.replace("~", HOME) : f.filePath;
+        // 跳过用户上传的文件（files/ 目录），不要回传给用户
+        if (resolved.startsWith(FILE_DIR)) continue;
         if (sentPaths.has(resolved)) continue;
         const ext = resolved.slice(resolved.lastIndexOf(".")).toLowerCase();
         if (!IMAGE_EXTS.has(ext) && !DOC_EXTS.has(ext)) continue;
