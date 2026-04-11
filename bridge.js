@@ -428,8 +428,8 @@ async function processPrompt(ctx, prompt) {
 
     // 微信不能编辑/删除消息，不发工具调用摘要（会永久留在聊天里）
     // Telegram 版通过 editMessage 处理，微信只能跳过
+    // 仅 verbose=2 时才发摘要（用户主动要求详细模式）
     if (verboseLevel >= 2 && resultSuccess) {
-      // 仅 verbose=2 时才发摘要（用户主动要求详细模式）
       const summary = progress.getSummary(durationMs);
       if (summary) await sendText(WECHAT_BOT_TOKEN, ctx.userId, summary, ctx.contextToken).catch(() => {});
     }
