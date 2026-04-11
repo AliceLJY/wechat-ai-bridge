@@ -220,6 +220,36 @@ For protocol details, see [research.md](research.md).
 
 ---
 
+## Adding Custom Backends
+
+The adapter interface is designed for easy extension. To add a new AI backend (e.g. [OpenCode](https://opencode.ai/), [Crush](https://github.com/charmbracelet/crush), or any CLI agent):
+
+1. Create `adapters/yourbackend.js` exporting `createAdapter(config)`:
+
+```js
+export function createAdapter(config = {}) {
+  return {
+    name: "yourbackend",
+    async *streamQuery({ prompt, sessionId, model, cwd, abortController }) {
+      yield { type: "session_init", sessionId: "..." };
+      yield { type: "text", text: "response chunk" };
+      yield { type: "result", success: true, text: "final answer" };
+    },
+    statusInfo() {
+      return { backend: "yourbackend", model: "...", session: "..." };
+    }
+  };
+}
+```
+
+2. Register it in `adapters/interface.js` and add the name to `AVAILABLE_BACKENDS` in `config.js`.
+
+Event types: `session_init` | `progress` (tool use indicators) | `text` (streaming chunks) | `result` (final).
+
+> **Community interest**: OpenCode / Crush support has been requested. OpenCode offers a [JS/TS SDK](https://opencode.ai/docs/sdk/) (`@opencode-ai/sdk`); Crush provides a [Unix socket REST API](https://github.com/charmbracelet/crush) with SSE streaming. PRs welcome!
+
+---
+
 ## Ecosystem
 
 Part of the **小试AI** open-source AI workflow:

@@ -158,6 +158,36 @@ Bridge 使用微信官方 **iLink Bot API**——和 OpenClaw 微信集成用的
 
 ---
 
+## 添加自定义后端
+
+适配器接口设计上易于扩展。要接入新的 AI 后端（如 [OpenCode](https://opencode.ai/)、[Crush](https://github.com/charmbracelet/crush) 或任何 CLI agent）：
+
+1. 新建 `adapters/yourbackend.js`，导出 `createAdapter(config)`：
+
+```js
+export function createAdapter(config = {}) {
+  return {
+    name: "yourbackend",
+    async *streamQuery({ prompt, sessionId, model, cwd, abortController }) {
+      yield { type: "session_init", sessionId: "..." };
+      yield { type: "text", text: "response chunk" };
+      yield { type: "result", success: true, text: "final answer" };
+    },
+    statusInfo() {
+      return { backend: "yourbackend", model: "...", session: "..." };
+    }
+  };
+}
+```
+
+2. 在 `adapters/interface.js` 注册，在 `config.js` 的 `AVAILABLE_BACKENDS` 里加上名字。
+
+事件类型：`session_init` | `progress`（工具调用指示） | `text`（流式分块） | `result`（最终结果）。
+
+> **社区呼声**：已收到 OpenCode / Crush 支持请求。OpenCode 提供 [JS/TS SDK](https://opencode.ai/docs/sdk/)（`@opencode-ai/sdk`）；Crush 提供 [Unix socket REST API](https://github.com/charmbracelet/crush) + SSE 流式推送。欢迎 PR！
+
+---
+
 ## 生态
 
 **小试AI** 开源 AI 工作流的一部分：
