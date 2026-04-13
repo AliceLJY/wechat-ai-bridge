@@ -4,6 +4,15 @@ import { readdirSync, statSync, createReadStream } from "fs";
 import { basename, join } from "path";
 import { createInterface } from "readline";
 
+// 让 bridge 产生的 session 也能出现在终端 `/resume` 列表里。
+// CC 2.1.104+ 会按 entrypoint ∈ {sdk-cli, sdk-ts, sdk-py} 过滤掉 SDK 来源 session；
+// SDK 的 env 注入是条件性的 (`if (!CLAUDE_CODE_ENTRYPOINT) = "sdk-ts"`)，
+// 我们提前占位成 "cli"，SDK 就不会覆盖，子进程写入 jsonl 时记为 entrypoint:"cli"。
+// 回滚方法：删掉这 3 行。
+if (!process.env.CLAUDE_CODE_ENTRYPOINT) {
+  process.env.CLAUDE_CODE_ENTRYPOINT = "cli";
+}
+
 export function createAdapter(config = {}) {
   const defaultModel = config.model || process.env.CC_MODEL || "claude-sonnet-4-6";
   const cwd = config.cwd || process.env.CC_CWD || process.env.HOME;
