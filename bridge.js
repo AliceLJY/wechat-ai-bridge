@@ -637,6 +637,8 @@ async function handleCommand(ctx, text) {
       for (const s of externalSessions) {
         if (!seen.has(s.session_id)) { allSessions.push(s); seen.add(s.session_id); }
       }
+      // 统一按时间倒序排列，不分来源
+      allSessions.sort((a, b) => (b.last_active || 0) - (a.last_active || 0));
       if (!allSessions.length) {
         await sendText(WECHAT_BOT_TOKEN, ctx.userId, "没有找到历史会话。", ctx.contextToken);
         break;
