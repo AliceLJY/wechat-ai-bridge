@@ -41,36 +41,13 @@ export function createProgressTracker(token, toUserId, contextToken, verboseLeve
       if (SILENT_TOOLS.has(toolName)) return;
       const icon = TOOL_ICONS[toolName] || "🔧";
 
-      let detail = "";
-      if (event.input) {
-        detail = typeof event.input === "object"
-          ? (event.input.command || event.input.file_path || event.input.description || event.input.pattern || event.input.query || "").slice(0, 80)
-          : (event.detail || "").slice(0, 80);
-      }
-
-      if (verboseLevel >= 2 && detail) {
-        entries.push(`${icon} ${toolName}: ${detail}`);
+      if (verboseLevel >= 2 && event.input) {
+        const inp = typeof event.input === "object"
+          ? (event.input.command || event.input.file_path || event.input.description || event.input.pattern || event.input.query || "").slice(0, 60)
+          : (event.detail || "").slice(0, 60);
+        entries.push(`${icon} ${toolName}${inp ? ": " + inp : ""}`);
       } else {
-        // verboseLevel 1: 同名工具合并计数
-        const lastEntry = entries[entries.length - 1] || "";
-        const counterRe = new RegExp(`^${icon.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} ${toolName}(?: x(\\d+))?$`);
-        const m = lastEntry.match(counterRe);
-        if (m) {
-          const count = (parseInt(m[1]) || 1) + 1;
-          entries[entries.length - 1] = `${icon} ${toolName} x${count}`;
-        } else {
-          entries.push(`${icon} ${toolName}`);
-        }
-      }
-
-      // 终端实时日志：始终输出工具调用
-      console.log(`  ${icon} ${toolName}${detail ? ": " + detail : ""}`);
-    }
-
-    if (event.type === "text" && event.text && verboseLevel >= 2) {
-      const snippet = event.text.slice(0, 100).replace(/\n/g, " ");
-      if (snippet.trim()) {
-        entries.push(`💭 ${snippet}${event.text.length > 100 ? "..." : ""}`);
+        entries.push(`${icon} ${toolName}`);
       }
     }
     // 微信不能编辑消息，工具进度只记录不实时更新
