@@ -309,6 +309,8 @@ async function processPrompt(ctx, prompt) {
   try {
     markTaskStarted(taskId);
     idleMonitor.startProcessing(chatId);
+    console.log(`\n[${adapter.label}] ▶ 开始处理 (chatId=${chatId})`);
+    console.log(`  📝 Prompt: ${prompt.slice(0, 150)}${prompt.length > 150 ? "..." : ""}`);
     await progress.start();
 
     // 注入 bridge 行为指令
@@ -344,6 +346,9 @@ async function processPrompt(ctx, prompt) {
     if (backendName === "claude") {
       streamOverrides.requestPermission = createPermissionHandler(ctx, taskId);
     }
+
+    let textChunks = 0;
+    let accumulatedLen = 0;
 
     try {
       for await (const event of executor.streamTask({
@@ -386,6 +391,13 @@ async function processPrompt(ctx, prompt) {
         }
         if (event.type === "text" && event.text) {
           extractFilePathsFromText(event.text, capturedFiles);
+          accumulatedLen += event.text.length;
+          textChunks++;
+          // 每积累 500 字符打一次日志，避免刷屏
+          if (textChunks === 1 || accumulatedLen % 500 < (event.text.length)) {
+            const snippet = event.text.slice(0, 80).replace(/\n/g, " ");
+            console.log(`  💭 [文本 +${event.text.length}字] ${snippet}${event.text.length > 80 ? "..." : ""}`);
+          }
         }
 
         idleMonitor.heartbeat(chatId);
@@ -395,9 +407,10 @@ async function processPrompt(ctx, prompt) {
           resultSuccess = event.success;
           resultText = event.text || "";
           extractFilePathsFromText(resultText, capturedFiles);
-          const costStr = event.cost != null ? ` $${event.cost.toFixed(4)}` : "";
-          const durStr = event.duration != null ? ` ${event.duration}ms` : "";
-          console.log(`[${adapter.label}] ${resultSuccess ? "ok" : "err"}${durStr}${costStr}`);
+          const costStr = event.cost != null ? ` 花费 $${event.cost.toFixed(4)}` : "";
+          const durStr = event.duration != null ? ` 耗时 ${event.duration}ms` : "";
+          const lenStr = resultText ? ` 输出 ${resultText.length}字` : "";
+          console.log(`[${adapter.label}] 结果: ${resultSuccess ? "success" : "error"}${durStr}${costStr}${lenStr}`);
         }
       }
     } catch (err) {
@@ -435,6 +448,9 @@ async function processPrompt(ctx, prompt) {
     }
 
     // 文件/图片回传：CDN 上传 + 发送
+    if (capturedImages.length > 0 || capturedFiles.length > 0) {
+      console.log(`[Bridge] 输出回传: ${capturedImages.length} 张图片, ${capturedFiles.length} 个文件`);
+    }
     if (resultSuccess && capturedFiles.length > 0) {
       const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
       const DOC_EXTS = new Set([".pdf", ".docx", ".xlsx", ".csv", ".html", ".txt", ".md", ".json", ".js", ".ts", ".py", ".sh", ".yaml", ".yml", ".xml", ".log", ".zip", ".tar", ".gz"]);
@@ -501,9 +517,11 @@ async function processPrompt(ctx, prompt) {
     if (resultText) resultText = protectFileReferences(resultText);
     if (!resultSuccess) {
       finalizeFailure(summarizeText(resultText, 240), "RESULT_ERROR");
+      console.log(`[${adapter.label}] ✗ 错误回复: ${resultText.slice(0, 150)}${resultText.length > 150 ? "..." : ""}`);
       await weSendLong(ctx.userId, `${adapter.label} 错误: ${resultText}`, ctx.contextToken);
     } else if (resultText) {
       finalizeSuccess(summarizeText(resultText, 240));
+      console.log(`[${adapter.label}] ✓ 回复 (${resultText.length}字): ${resultText.slice(0, 150)}${resultText.length > 150 ? "..." : ""}`);
       // 快捷回复检测
       const replies = detectQuickReplies(resultText);
       if (replies) {
@@ -897,11 +915,13 @@ async function onMessage(msg) {
 
   // 命令
   if (text.startsWith("/")) {
+    console.log(`[命令] ${text.slice(0, 80)}`);
     await handleCommand(ctx, text);
     return;
   }
 
   // 普通消息 → AI
+  console.log(`[收到] ${text.slice(0, 120)}${text.length > 120 ? "..." : ""}`);
   await submitAndWait(ctx, text);
 }
 
