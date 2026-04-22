@@ -2,7 +2,12 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { readdirSync, statSync, createReadStream } from "fs";
 import { basename, join } from "path";
+import { homedir } from "os";
 import { createInterface } from "readline";
+
+// SDK 0.2.113+ 砍掉了 SDK 内置的 cli.js（改用 optional native binary），显式传 claude CLI 路径最稳。
+// 优先走环境变量（方便 launchd 兜底），否则用 Alice 两台机通用的 ~/.local/bin/claude。
+const CLAUDE_CLI_PATH = process.env.CLAUDE_CLI_PATH || join(homedir(), ".local/bin/claude");
 
 // 让 bridge 产生的 session 也能出现在终端 `/resume` 列表里。
 // CC 2.1.104+ 会按 entrypoint ∈ {sdk-cli, sdk-ts, sdk-py} 过滤掉 SDK 来源 session；
@@ -180,6 +185,7 @@ export function createAdapter(config = {}) {
         permissionMode: effectivePermMode,
         ...(effectivePermMode === "bypassPermissions" && { allowDangerouslySkipPermissions: true }),
         cwd: effectiveCwd,
+        pathToClaudeCodeExecutable: CLAUDE_CLI_PATH,
         ...(overrideEffort ? { effort: overrideEffort } : {}),
       };
 
