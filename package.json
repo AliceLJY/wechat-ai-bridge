@@ -19,7 +19,7 @@
     "url": "https://github.com/AliceLJY/wechat-ai-bridge.git"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.81",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.117",
     "@openai/codex-sdk": "^0.107.0",
     "google-auth-library": "^9.0.0",
     "qrcode-terminal": "^0.12.0"
