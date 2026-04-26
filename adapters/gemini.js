@@ -1,10 +1,11 @@
-// Gemini Code Assist 适配器（OAuth 直连，复用 Pro 订阅）
+﻿// Gemini Code Assist 适配器（OAuth 直连，复用 Pro 订阅）
 // 走 cloudcode-pa.googleapis.com，不走标准 generativelanguage API
 // OAuth token 从 ~/.gemini/oauth_creds.json 读取，自动刷新
 
 import { OAuth2Client } from "google-auth-library";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
+import { homedir } from "os";
 import { randomUUID } from "crypto";
 
 // Gemini CLI 公开的 OAuth Client（installed app，非秘密）
@@ -16,7 +17,19 @@ const CODE_ASSIST_ENDPOINT =
   process.env.CODE_ASSIST_ENDPOINT || "https://cloudcode-pa.googleapis.com";
 const CODE_ASSIST_API_VERSION =
   process.env.CODE_ASSIST_API_VERSION || "v1internal";
-const OAUTH_CREDS_PATH = join(process.env.HOME, ".gemini/oauth_creds.json");
+// 获取用户目录，兼容 Windows 和 Unix
+function getUserHome() {
+  return process.env.HOME || process.env.USERPROFILE || homedir();
+}
+
+// 延迟初始化，在函数调用时才获取 home 目录
+let _oauthCredsPath = null;
+function getOAuthCredsPath() {
+  if (!_oauthCredsPath) {
+    _oauthCredsPath = join(getUserHome(), ".gemini/oauth_creds.json");
+  }
+  return _oauthCredsPath;
+}
 
 export function createAdapter(config = {}) {
   const defaultModel =
@@ -40,10 +53,10 @@ export function createAdapter(config = {}) {
 
     let creds;
     try {
-      creds = JSON.parse(readFileSync(OAUTH_CREDS_PATH, "utf-8"));
+      creds = JSON.parse(readFileSync(getOAuthCredsPath(), "utf-8"));
     } catch {
       throw new Error(
-        `无法读取 ${OAUTH_CREDS_PATH}，请先运行 gemini 登录`
+        `无法读取 ${getOAuthCredsPath()}，请先运行 gemini 登录`
       );
     }
 
@@ -271,14 +284,14 @@ export function createAdapter(config = {}) {
     statusInfo(overrideModel) {
       return {
         model: overrideModel || defaultModel,
-        cwd: process.env.HOME,
+        cwd: getUserHome(),
         mode: "Code Assist OAuth (Pro)",
       };
     },
 
     async listSessions(limit = 10) {
       // 扫描 Gemini CLI 的本地 session 文件：~/.gemini/tmp/*/chats/session-*.json
-      const geminiTmp = join(process.env.HOME, ".gemini", "tmp");
+      const geminiTmp = join(getUserHome(), ".gemini", "tmp");
       const allFiles = [];
 
       try {
