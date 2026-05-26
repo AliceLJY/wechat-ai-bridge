@@ -195,8 +195,8 @@ export function createAdapter(config = {}) {
 | 项目 | 说明 |
 |------|------|
 | [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge) | 同架构，Telegram 界面 |
+| [tg-bridge-channel](https://github.com/AliceLJY/tg-bridge-channel) | 姊妹桥接，基于 Claude Agent View 后台 session（channel/pool 引擎） |
 | [recallnest](https://github.com/AliceLJY/recallnest) | MCP 记忆工作台 |
-| [content-alchemy](https://github.com/AliceLJY/content-alchemy) | 5 阶段 AI 写作流水线 |
 | [openclaw-tunnel](https://github.com/AliceLJY/openclaw-tunnel) | Docker ↔ 宿主机 CLI 桥接 |
 
 ## 许可证

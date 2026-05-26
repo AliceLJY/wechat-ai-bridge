@@ -177,7 +177,7 @@ The bridge uses WeChat's official **iLink Bot API** — the same protocol behind
     "claude": {
       "enabled": true,
       "sessionsDb": "sessions.db",
-      "model": "claude-sonnet-4-6",
+      "model": "claude-sonnet-4-7",
       "permissionMode": "default"
     }
   }
@@ -257,8 +257,8 @@ Part of the **小试AI** open-source AI workflow:
 | Project | Description |
 |---------|-------------|
 | [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge) | Same architecture, Telegram interface |
+| [tg-bridge-channel](https://github.com/AliceLJY/tg-bridge-channel) | Sister bridge using Claude Agent View background sessions (channel/pool engine) |
 | [recallnest](https://github.com/AliceLJY/recallnest) | MCP memory workbench |
-| [content-alchemy](https://github.com/AliceLJY/content-alchemy) | 5-stage AI writing pipeline |
 | [openclaw-tunnel](https://github.com/AliceLJY/openclaw-tunnel) | Docker ↔ host CLI bridge |
 
 ## License
