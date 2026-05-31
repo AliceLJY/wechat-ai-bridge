@@ -17,6 +17,9 @@ try {
 export function createAdapter(config = {}) {
   const defaultModel = config.model || process.env.CODEX_MODEL || "";
   const cwd = config.cwd || process.env.CC_CWD || process.env.HOME;
+  // 可选：指定 codex 二进制路径。默认用 npm 自带的；设 CODEX_PATH 可指向系统已签名的 codex，
+  // 绕开 npm 未公证二进制在 launchd 下被 macOS Gatekeeper 拦杀（SIGKILL / "恶意软件"）的问题。
+  const codexPath = config.codexPath || process.env.CODEX_PATH || "";
 
   // 按模型缓存 SDK 实例
   const sdkCache = new Map();
@@ -30,6 +33,7 @@ export function createAdapter(config = {}) {
     if (!sdkCache.has(key)) {
       const opts = {};
       if (m) opts.config = { model: m };
+      if (codexPath) opts.codexPathOverride = codexPath;
       sdkCache.set(key, new Codex(opts));
     }
     return sdkCache.get(key);
