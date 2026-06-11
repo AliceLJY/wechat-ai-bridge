@@ -90,7 +90,20 @@ const idleMonitor = createIdleMonitor({
   idleTimeoutMs: IDLE_TIMEOUT_MS,
   resetOnIdleMs: RESET_ON_IDLE_MS,
   onTimeout: async (chatId) => {
-    console.log(`[idle] chatId=${chatId} 处理超时`);
+    // 卡死自愈：心跳停止超过 idleTimeoutMs → 真正中断当前任务并告知用户
+    const controller = chatAbortControllers.get(chatId);
+    const ctx = activeChatContexts.get(chatId);
+    if (controller) {
+      const mins = Math.round(IDLE_TIMEOUT_MS / 60000);
+      console.warn(`[idle] ${new Date().toISOString()} chatId=${chatId} 处理超时（${mins}min 无心跳），中断任务`);
+      controller.abort();
+      chatAbortControllers.delete(chatId);
+      if (ctx) {
+        sendText(WECHAT_BOT_TOKEN, ctx.userId, `⏱ 任务超过 ${mins} 分钟无响应，已自动中断。可重新发消息继续。`, ctx.contextToken).catch(() => {});
+      }
+    } else {
+      console.log(`[idle] ${new Date().toISOString()} chatId=${chatId} 超时但无活跃任务可中断`);
+    }
   },
 });
 
@@ -134,6 +147,7 @@ const verboseSettings = new Map();
 const pendingInteractions = new Map(); // chatId -> { type, resolve, options?, cleanup? }
 const chatPermState = new Map();
 const chatAbortControllers = new Map();
+const activeChatContexts = new Map(); // chatId -> ctx（当前处理中的 ctx，供超时回调通知用户）
 const lastSessionList = new Map(); // chatId -> [{session_id, ...}] — /sessions 的缓存，供 /resume <序号> 使用
 
 // ── 工具函数 ──
@@ -325,11 +339,15 @@ async function processPrompt(ctx, prompt) {
 
     const abortController = new AbortController();
     chatAbortControllers.set(chatId, abortController);
+    activeChatContexts.set(chatId, ctx);
 
     const startTime = Date.now();
     const WATCHDOG_MS = 15 * 60 * 1000;
+    // 长任务提示（非强杀）：正常流式任务可能合法跑很久，强杀会误伤；
+    // 真正的卡死由 idleMonitor 的心跳停止检测负责中断。这里只提示并给用户 /cancel 的控制权。
     const watchdog = setTimeout(() => {
-      console.warn(`[watchdog] chatId=${chatId} 已运行 15 分钟`);
+      console.warn(`[watchdog] ${new Date().toISOString()} chatId=${chatId} 已运行 15 分钟，仍在继续`);
+      sendText(WECHAT_BOT_TOKEN, ctx.userId, "⏳ 任务已运行 15 分钟，仍在进行中。如需中断可发送 /cancel。", ctx.contextToken).catch(() => {});
     }, WATCHDOG_MS);
 
     const modelOverride = getChatModel(chatId);
@@ -415,6 +433,7 @@ async function processPrompt(ctx, prompt) {
       clearTimeout(watchdog);
       idleMonitor.stopProcessing(chatId);
       chatAbortControllers.delete(chatId);
+      activeChatContexts.delete(chatId);
     }
 
     // 保存 session

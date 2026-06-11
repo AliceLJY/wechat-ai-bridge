@@ -27,9 +27,9 @@ function makeHeaders(token) {
 /**
  * 通用 GET 请求
  */
-export async function iLinkGet(path, token, baseUrl = DEFAULT_BASE_URL) {
+export async function iLinkGet(path, token, baseUrl = DEFAULT_BASE_URL, options = {}) {
   const url = `${baseUrl}${path}`;
-  const resp = await fetch(url, { headers: makeHeaders(token) });
+  const resp = await fetch(url, { headers: makeHeaders(token), signal: options.signal });
   if (!resp.ok) {
     const body = await resp.text().catch(() => "");
     throw new Error(`iLink GET ${path} ${resp.status}: ${body.slice(0, 300)}`);
@@ -40,12 +40,13 @@ export async function iLinkGet(path, token, baseUrl = DEFAULT_BASE_URL) {
 /**
  * 通用 POST 请求
  */
-export async function iLinkPost(path, body, token, baseUrl = DEFAULT_BASE_URL) {
+export async function iLinkPost(path, body, token, baseUrl = DEFAULT_BASE_URL, options = {}) {
   const url = `${baseUrl}${path}`;
   const resp = await fetch(url, {
     method: "POST",
     headers: makeHeaders(token),
     body: JSON.stringify(body),
+    signal: options.signal,
   });
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");

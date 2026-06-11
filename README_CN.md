@@ -9,7 +9,7 @@
 自托管的微信 AI Bridge，通过官方 iLink Bot API 连接。不用翻墙，零封号风险。
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/AliceLJY/wechat-ai-bridge/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/AliceLJY/wechat-ai-bridge/releases)
 [![Bun](https://img.shields.io/badge/Runtime-Bun-f9f1e1?logo=bun)](https://bun.sh)
 [![WeChat](https://img.shields.io/badge/Interface-WeChat-07C160?logo=wechat)](https://weixin.qq.com/)
 
@@ -74,7 +74,7 @@ git push origin main
 
 - **发图片/文件给 AI**：微信媒体自动下载、AES 解密、注入 prompt
 - **从 AI 收文件**：AI 生成的文件自动加密上传到 CDN，发回微信对话
-- **长代码输出**：超 2000 字符且代码占比 >60% → 自动转为文件附件
+- **长输出**：超过 2000 字符的消息自动分段发送，代码块保持完整
 
 ### 内置可靠性
 
@@ -154,7 +154,6 @@ Bridge 使用微信官方 **iLink Bot API**——和 OpenClaw 微信集成用的
 | 超时检测 | 无 | 无 | 看门狗 + 自动重置 |
 | 消息合并 | 无 | 无 | FlushGate（800ms 合并） |
 | 跨平台会话 | 无 | 无 | 看到所有 CC 会话（CLI + 其他 bridge） |
-| 代码转文件 | 无 | 无 | >60% 代码 → 文件附件 |
 
 ---
 

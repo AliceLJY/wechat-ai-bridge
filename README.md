@@ -9,7 +9,7 @@
 A self-hosted WeChat bridge that connects to AI coding agents via the official iLink Bot API. No VPN needed. Zero ban risk.
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/AliceLJY/wechat-ai-bridge/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/AliceLJY/wechat-ai-bridge/releases)
 [![Bun](https://img.shields.io/badge/Runtime-Bun-f9f1e1?logo=bun)](https://bun.sh)
 [![WeChat](https://img.shields.io/badge/Interface-WeChat-07C160?logo=wechat)](https://weixin.qq.com/)
 
@@ -74,7 +74,7 @@ Reply `1`, `2`, `3`, or `4`. No buttons needed — just text.
 
 - **Send photos/files to AI**: WeChat media is downloaded, decrypted (AES-128-ECB), and injected into the prompt
 - **Receive files from AI**: AI-generated files and screenshots are encrypted, uploaded to CDN, and sent back to your WeChat chat
-- **Long code output**: >2000 chars with >60% code → sent as file attachment with preview
+- **Long output**: messages over 2000 chars are auto-split into multiple messages, with code fences kept intact
 
 ### Built-in Resilience
 
@@ -154,7 +154,6 @@ The bridge uses WeChat's official **iLink Bot API** — the same protocol behind
 | Idle monitoring | None | None | Watchdog + auto-reset |
 | Message batching | None | None | FlushGate (800ms merge) |
 | Cross-platform sessions | None | None | See all CC sessions (CLI + other bridges) |
-| Code as file | None | None | >60% code → file attachment |
 
 ---
 
