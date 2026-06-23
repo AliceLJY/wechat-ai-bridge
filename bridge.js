@@ -5,6 +5,8 @@ import { mkdirSync, existsSync, readFileSync, writeFileSync } from "fs";
 import { basename, join } from "path";
 import {
   getSession,
+  peekSession,
+  getSessionResetAt,
   setSession,
   deleteSession,
   recentSessions,
@@ -436,9 +438,18 @@ async function processPrompt(ctx, prompt) {
       activeChatContexts.delete(chatId);
     }
 
-    // 保存 session
+    // 保存 session（写回防护：turn 期间被 /new、idle-reset、切后端清过或切走映射 → 放弃写回，防旧会话复活）
     if (capturedSessionId) {
-      setSession(chatId, capturedSessionId, prompt.slice(0, 30), backendName, "owned");
+      const resetAt = getSessionResetAt(chatId);
+      const current = peekSession(chatId);
+      const currentId = current?.session_id || null;
+      const mappingReset = resetAt >= startTime;
+      const mappingSwitched = currentId !== (sessionId || null) && currentId !== capturedSessionId;
+      if (mappingReset || mappingSwitched) {
+        console.log(`[Session] 放弃写回 ${capturedSessionId.slice(0, 8)}：turn 期间映射被重置/切换（resetAt=${resetAt} turnStart=${startTime} current=${currentId ? currentId.slice(0, 8) : "null"}）`);
+      } else {
+        setSession(chatId, capturedSessionId, prompt.slice(0, 30), backendName, "owned");
+      }
     }
 
     // 结束进度

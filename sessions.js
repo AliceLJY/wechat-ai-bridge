@@ -176,6 +176,24 @@ export function getSession(chatId) {
   };
 }
 
+// 无 touch 副作用的只读版（getSession 会刷新 last_active；turn 收尾的写回防护不该改活跃时间）
+export function peekSession(chatId) {
+  const row = stmtGet.get(chatId);
+  if (!row) return null;
+  return {
+    session_id: row.session_id,
+    backend: row.backend || "claude",
+    ownership: row.ownership || "owned",
+  };
+}
+
+// chatId → 最近一次 deleteSession 的时间（内存即可：bridge 重启时在途 turn 的收尾回调一并消失）
+const sessionResetAt = new Map();
+
+export function getSessionResetAt(chatId) {
+  return sessionResetAt.get(chatId) || 0;
+}
+
 export function setSession(
   chatId,
   sessionId,
@@ -195,6 +213,7 @@ export function deleteSession(chatId) {
   // 归档到历史再删除
   stmtArchive.run(chatId);
   stmtDelete.run(chatId);
+  sessionResetAt.set(chatId, Date.now());
 }
 
 export function getHistorySession(sessionId) {
