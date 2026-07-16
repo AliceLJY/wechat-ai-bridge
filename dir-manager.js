@@ -3,6 +3,7 @@
 
 import { existsSync, statSync } from "fs";
 import { resolve } from "path";
+import { resolveHomeDirectory } from "./runtime-paths.js";
 
 const MAX_HISTORY = 10;
 
@@ -23,7 +24,7 @@ export function createDirManager(defaultCwd) {
 
   function expandHome(dir) {
     if (dir.startsWith("~/") || dir === "~") {
-      return dir.replace("~", process.env.HOME || "/tmp");
+      return dir.replace("~", resolveHomeDirectory());
     }
     return dir;
   }

@@ -5,6 +5,9 @@
 import { readdirSync, statSync, createReadStream } from "fs";
 import { basename, join } from "path";
 import { createInterface } from "readline";
+import { resolveHomeDirectory } from "../runtime-paths.js";
+
+const HOME_DIR = resolveHomeDirectory();
 
 let Codex;
 try {
@@ -16,7 +19,7 @@ try {
 
 export function createAdapter(config = {}) {
   const defaultModel = config.model || process.env.CODEX_MODEL || "";
-  const cwd = config.cwd || process.env.CC_CWD || process.env.HOME;
+  const cwd = config.cwd || process.env.CC_CWD || HOME_DIR;
   // 可选：指定 codex 二进制路径。默认用 npm 自带的；设 CODEX_PATH 可指向系统已签名的 codex，
   // 绕开 npm 未公证二进制在 launchd 下被 macOS Gatekeeper 拦杀（SIGKILL / "恶意软件"）的问题。
   const codexPath = config.codexPath || process.env.CODEX_PATH || "";
@@ -40,7 +43,7 @@ export function createAdapter(config = {}) {
   }
 
   function listRecentSessionFiles(limit = 10) {
-    const sessionsDir = join(process.env.HOME, ".codex", "sessions");
+    const sessionsDir = join(HOME_DIR, ".codex", "sessions");
     const allFiles = [];
 
     try {
@@ -74,7 +77,7 @@ export function createAdapter(config = {}) {
   }
 
   function findSessionFile(sessionId) {
-    const sessionsDir = join(process.env.HOME, ".codex", "sessions");
+    const sessionsDir = join(HOME_DIR, ".codex", "sessions");
     try {
       for (const yyyy of readdirSync(sessionsDir)) {
         const yearDir = join(sessionsDir, yyyy);

@@ -1,14 +1,16 @@
 {
   "name": "wechat-ai-bridge",
-  "version": "1.1.0",
-  "description": "Run full AI coding agents behind WeChat private chat via iLink Bot API",
+  "version": "1.2.0",
+  "description": "Self-hosted WeChat bridge for Claude Code and Codex, with an experimental Gemini text backend",
   "type": "module",
   "scripts": {
     "start": "bun start.js start",
     "bootstrap": "bun start.js bootstrap",
     "setup": "bun start.js setup",
     "check": "bun start.js check",
-    "config": "bun start.js config"
+    "config": "bun start.js config",
+    "test": "node --test",
+    "check:syntax": "node scripts/check-syntax.mjs"
   },
   "engines": {
     "bun": ">=1.3.9"
@@ -19,9 +21,15 @@
     "url": "https://github.com/AliceLJY/wechat-ai-bridge.git"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.117",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.141",
     "@openai/codex-sdk": "^0.107.0",
-    "google-auth-library": "^9.0.0",
+    "google-auth-library": "^9.15.1",
     "qrcode-terminal": "^0.12.0"
+  },
+  "overrides": {
+    "fast-uri": "^3.1.3",
+    "hono": "^4.12.30",
+    "ip-address": "^10.2.0",
+    "qs": "^6.15.3"
   }
 }

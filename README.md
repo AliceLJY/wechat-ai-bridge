@@ -2,14 +2,14 @@
 
 # wechat-ai-bridge
 
-**Full AI Coding Agents. In WeChat. Private Chat.**
+**Claude Code and Codex. In WeChat Private Chat.**
 
-*Run actual Claude Code / Codex / Gemini from WeChat — not an API wrapper — with session management, tool approval, and file relay.*
+*Run local Claude Code or Codex agent sessions from WeChat, with Claude tool approval and file relay; an experimental Gemini Code Assist text backend is also available.*
 
-A self-hosted WeChat bridge that connects to AI coding agents via the official iLink Bot API. No VPN needed. Zero ban risk.
+A self-hosted bridge that uses WeChat's iLink bot endpoints. The WeChat transport itself needs no separate tunnel where iLink is available; each AI backend still needs its normal network access and account eligibility.
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/AliceLJY/wechat-ai-bridge/releases)
+[![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](https://github.com/AliceLJY/wechat-ai-bridge/releases)
 [![Bun](https://img.shields.io/badge/Runtime-Bun-f9f1e1?logo=bun)](https://bun.sh)
 [![WeChat](https://img.shields.io/badge/Interface-WeChat-07C160?logo=wechat)](https://weixin.qq.com/)
 
@@ -19,15 +19,15 @@ A self-hosted WeChat bridge that connects to AI coding agents via the official i
 
 > **How is this different from cc-weixin / wechat-acp?**
 >
-> They connect one AI backend with basic message forwarding. This project adds **session management** (`/new` `/resume` `/sessions`), **multi-backend switching** (Claude + Codex + Gemini), **tool approval interaction**, and **bidirectional file relay** — the same workflow you get from [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge), now in WeChat.
+> This project focuses on **session management** (`/new` `/resume` `/sessions`), **backend selection** (Claude + Codex, with experimental Gemini text compatibility), **Claude tool approval**, and **bidirectional file relay** — the same workflow family as [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge), now using WeChat transport.
 
 ---
 
 ## What This Unlocks
 
-### Full AI Agent in Your Pocket — No VPN
+### Local Coding Agents from WeChat
 
-Send a message in WeChat. Get a full Claude Code response — with Bash, Read, Write, Edit, Glob, Grep, WebFetch, and all native tools. No terminal. No VPN. Works anywhere WeChat works.
+Send a message in WeChat and run a Claude Code or Codex turn on the bridge host. Available tools and filesystem access come from the selected SDK/CLI and its local configuration. The workflow requires WeChat/iLink and the selected model provider to be reachable.
 
 ### Session Management
 
@@ -39,21 +39,21 @@ Send a message in WeChat. Get a full Claude Code response — with Bash, Read, W
 你: /model            ← Switch models (reply with number)
 ```
 
-Sessions persist in SQLite across restarts. Pick up after a reboot, a network drop, or a flight. `/sessions` shows **all** CC sessions — including ones created from terminal CLI or other bridges — with the last user message as the title. Resume by number: `/resume 3`.
+Bridge session mappings and preferences persist in SQLite. Claude and Codex sessions can be discovered from their local session stores and resumed after restart. The experimental Gemini adapter keeps its conversation history in memory, so that history does not survive a bridge restart. `/sessions` lists sessions discoverable for the active backend; resume by number with `/resume 3`.
 
 ### Multi-Backend Support
 
-| Backend | SDK | Status |
-|---------|-----|--------|
-| `claude` | Claude Code (via Agent SDK) | Recommended |
-| `codex` | Codex CLI (via Codex SDK) | Recommended |
-| `gemini` | Gemini Code Assist API | Experimental |
+| Backend | Integration and capability | Status |
+|---------|----------------------------|--------|
+| `claude` | Agent SDK + local Claude executable; agent tools, resumable sessions, bridge-mediated tool approval | Recommended |
+| `codex` | Codex SDK/CLI; agent tools and resumable threads, without bridge-mediated approval prompts | Recommended |
+| `gemini` | Google Code Assist API text generation with in-memory history; no local tool execution | Experimental |
 
-Switch backends per chat with `/backend`.
+Select the backend at startup with `--backend`. `/backend` can switch only among adapters explicitly loaded by an advanced multi-adapter deployment.
 
-### Tool Approval via Chat
+### Claude Tool Approval via Chat
 
-When the AI needs permission to run a tool:
+When the Claude backend asks for permission to run a tool:
 
 ```
 🔒 工具审批
@@ -72,9 +72,18 @@ Reply `1`, `2`, `3`, or `4`. No buttons needed — just text.
 
 ### Bidirectional File Relay
 
-- **Send photos/files to AI**: WeChat media is downloaded, decrypted (AES-128-ECB), and injected into the prompt
-- **Receive files from AI**: AI-generated files and screenshots are encrypted, uploaded to CDN, and sent back to your WeChat chat
+- **Send photos/files to Claude or Codex**: WeChat media is downloaded, decrypted (AES-128-ECB), stored under local `files/` with a sanitized portable filename, and passed to the agent as a local path
+- **Receive files from Claude or Codex**: detected local output files and screenshots are encrypted, uploaded to the WeChat CDN, and sent back to your chat
 - **Long output**: messages over 2000 chars are auto-split into multiple messages, with code fences kept intact
+
+The experimental Gemini text backend cannot read the downloaded local file by itself because it has no local tools.
+
+### Data and Trust Boundaries
+
+- **Local by default**: bridge config, token, SQLite session/task mappings, and decrypted inbound file copies are stored on the bridge host.
+- **WeChat transport**: messages and context tokens pass through iLink endpoints; media is downloaded from or uploaded to the WeChat CDN.
+- **Model providers**: prompts and any context selected by the agent follow the data handling of the configured Claude, OpenAI, or Google backend. They do not remain exclusively on the bridge host.
+- **Host access**: this bridge is not a sandbox. Claude Code and Codex run with the filesystem and process permissions granted to their local CLI/SDK configuration. Bridge-mediated tool approval currently applies only to Claude.
 
 ### Built-in Resilience
 
@@ -134,9 +143,9 @@ WeChat App ←→ iLink Server (ilinkai.weixin.qq.com) ←→ wechat-ai-bridge �
                                                          └── bridge.js   (core message loop)
 ```
 
-The bridge uses WeChat's official **iLink Bot API** — the same protocol behind OpenClaw's WeChat integration. All communication is standard HTTP/JSON with long-polling (`getupdates`), similar to Telegram's Bot API. Media files are encrypted with AES-128-ECB on CDN.
+The bridge uses WeChat **iLink bot endpoints**. Communication is HTTP/JSON with long-polling (`getupdates`), similar to Telegram's Bot API. Media files use the protocol's AES-128-ECB encryption before CDN upload.
 
-**This is an official Tencent API.** Zero ban risk. Backed by WeChat ClawBot Terms of Use.
+The source code can show which endpoints it calls, but it cannot guarantee platform status, account eligibility, continued availability, or zero enforcement risk. Check the current WeChat terms that apply to your account and deployment.
 
 ---
 
@@ -144,16 +153,18 @@ The bridge uses WeChat's official **iLink Bot API** — the same protocol behind
 
 | Feature | cc-weixin | wechat-acp | This project |
 |---------|-----------|------------|-------------|
-| AI backends | Claude only | 6 via ACP | Claude + Codex + Gemini (native SDK) |
+| AI backends | Claude only | 6 via ACP | Claude + Codex agents; experimental Gemini text backend |
 | Session management | None | None | `/new` `/resume` `/sessions` `/backend` |
-| Tool approval | Auto-allow | Auto-allow | Interactive (1/2/3/4 choice) |
+| Tool approval | Auto-allow | Auto-allow | Interactive for Claude; no bridge approval prompt for Codex/Gemini |
 | Model switching | Hardcoded | Per-preset | `/model` with numbered selection |
-| File relay (in) | Text only | Images+files | Images + files (AES-128-ECB decrypted) |
-| File relay (out) | None | None | Auto-detect file paths + CDN upload |
+| File relay (in) | Text only | Images+files | Local-path relay for tool-capable Claude/Codex backends |
+| File relay (out) | None | None | Auto-detect local paths + encrypted WeChat CDN upload |
 | Rate limiting | None | None | Per-user sliding window |
 | Idle monitoring | None | None | Watchdog + auto-reset |
 | Message batching | None | None | FlushGate (800ms merge) |
-| Cross-platform sessions | None | None | See all CC sessions (CLI + other bridges) |
+| Cross-platform sessions | None | None | Discover local Claude/Codex sessions (CLI + other bridges) |
+
+Comparison entries describe the projects as reviewed on 2026-07-17 and may change upstream.
 
 ---
 
@@ -198,6 +209,8 @@ The bridge uses WeChat's official **iLink Bot API** — the same protocol behind
 - `weixin/monitor.js` — Long-polling message listener
 - `weixin/send.js` — Message sending + text chunking
 - `weixin/media.js` — CDN upload/download + AES-128-ECB
+- `inbound-files.js` — Portable filename sanitization + download containment
+- `runtime-paths.js` — Cross-platform home-directory resolution
 - `weixin/types.js` — iLink protocol constants
 - `adapters/` — AI backend integrations (Claude/Codex/Gemini)
 - `executor/` — Execution modes
@@ -207,13 +220,12 @@ The bridge uses WeChat's official **iLink Bot API** — the same protocol behind
 <details>
 <summary><strong>iLink Protocol Notes</strong></summary>
 
-- **Authentication**: QR code scan → `bot_token` (persisted to `~/.wechat-ai-bridge/token.json`)
+- **Authentication**: QR code scan → `bot_token` (persisted locally to `~/.wechat-ai-bridge/token.json`)
 - **Message flow**: `getupdates` long-poll (35s hold) → process → `sendmessage` with `context_token`
 - **Media**: AES-128-ECB encrypted CDN (`novac2c.cdn.weixin.qq.com`)
 - **Limitation**: 1 WeChat account = 1 bot (1:1 binding)
-- **No group chat**: iLink does not support group messaging
-
-For protocol details, see [research.md](research.md).
+- **No group chat**: the current bridge supports private messaging only
+- **Policy boundary**: endpoint availability and account eligibility remain subject to current WeChat terms
 
 </details>
 

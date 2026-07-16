@@ -2,14 +2,14 @@
 
 # wechat-ai-bridge
 
-**完整 AI 编程 Agent，在微信私聊里用**
+**在微信私聊里使用 Claude Code 和 Codex**
 
-*跑真正的 Claude Code / Codex / Gemini——不是 API 套壳——有会话管理、工具审批、文件回传。*
+*从微信调用本机 Claude Code 或 Codex Agent，支持 Claude 工具审批和文件回传；另提供实验性的 Gemini Code Assist 文本后端。*
 
-自托管的微信 AI Bridge，通过官方 iLink Bot API 连接。不用翻墙，零封号风险。
+自托管的微信 AI Bridge，使用微信 iLink bot 端点。iLink 可用时，微信传输本身不需要另建隧道；各 AI 后端仍需满足自身网络连通和账号资格要求。
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/AliceLJY/wechat-ai-bridge/releases)
+[![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](https://github.com/AliceLJY/wechat-ai-bridge/releases)
 [![Bun](https://img.shields.io/badge/Runtime-Bun-f9f1e1?logo=bun)](https://bun.sh)
 [![WeChat](https://img.shields.io/badge/Interface-WeChat-07C160?logo=wechat)](https://weixin.qq.com/)
 
@@ -19,15 +19,15 @@
 
 > **和 cc-weixin / wechat-acp 有什么区别？**
 >
-> 它们连接一个 AI 后端，做基础消息转发。本项目增加了**会话管理**（`/new` `/resume` `/sessions`）、**多后端切换**（Claude + Codex + Gemini）、**工具审批交互**、**双向文件回传**——跟 [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge) 一样的工作流，现在搬到微信。
+> 本项目重点提供**会话管理**（`/new` `/resume` `/sessions`）、**后端选择**（Claude + Codex，以及实验性的 Gemini 文本兼容）、**Claude 工具审批**和**双向文件回传**——与 [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge) 属于同一类工作流，传输入口改为微信。
 
 ---
 
 ## 能做什么
 
-### 口袋里的完整 AI Agent——不用翻墙
+### 从微信调用本机编程 Agent
 
-在微信里发消息，收到完整的 Claude Code 回复——Bash、Read、Write、Edit、Glob、Grep、WebFetch 等原生工具全部可用。不需要终端，不需要翻墙，微信能用的地方就能用。
+在微信里发消息，由 Bridge 主机上的 Claude Code 或 Codex 执行一轮任务。实际可用工具和文件访问范围取决于所选 SDK/CLI 及其本机配置；工作流还要求微信/iLink 与对应模型提供商均可连接。
 
 ### 会话管理
 
@@ -39,21 +39,21 @@
 你: /model            ← 切模型（回复数字选择）
 ```
 
-会话持久化在 SQLite 里，重启、断网、重开机都不丢。`/sessions` 显示**所有** CC 会话——包括终端 CLI 和其他 bridge 创建的——以最后一句话为标题。序号恢复：`/resume 3`。
+Bridge 的会话映射和偏好保存在 SQLite。Claude、Codex 可从各自的本地 session 目录发现并恢复会话；实验性 Gemini 适配器的对话历史只在内存中，Bridge 重启后不会保留。`/sessions` 列出当前后端能够发现的会话，可用 `/resume 3` 按序号恢复。
 
 ### 多后端支持
 
-| 后端 | SDK | 状态 |
-|------|-----|------|
-| `claude` | Claude Code（Agent SDK） | 主推荐 |
-| `codex` | Codex CLI（Codex SDK） | 主推荐 |
-| `gemini` | Gemini Code Assist API | 实验兼容 |
+| 后端 | 接入方式与能力 | 状态 |
+|------|----------------|------|
+| `claude` | Agent SDK + 本机 Claude 可执行文件；Agent 工具、可恢复会话、Bridge 工具审批 | 主推荐 |
+| `codex` | Codex SDK/CLI；Agent 工具和可恢复 thread，不提供 Bridge 审批提示 | 主推荐 |
+| `gemini` | Google Code Assist API 文本生成，历史只在内存中；不执行本机工具 | 实验兼容 |
 
-用 `/backend` 切换。
+通常通过启动参数 `--backend` 选择后端。只有高级部署显式加载了多个适配器时，`/backend` 才能在这些已加载后端之间切换。
 
-### 工具审批
+### Claude 工具审批
 
-AI 需要执行工具时：
+Claude 后端请求执行工具时：
 
 ```
 🔒 工具审批
@@ -72,9 +72,18 @@ git push origin main
 
 ### 双向文件传输
 
-- **发图片/文件给 AI**：微信媒体自动下载、AES 解密、注入 prompt
-- **从 AI 收文件**：AI 生成的文件自动加密上传到 CDN，发回微信对话
+- **发图片/文件给 Claude 或 Codex**：微信媒体自动下载、AES 解密，以经过净化的跨平台文件名存入本机 `files/`，再把本地路径交给 Agent
+- **从 Claude 或 Codex 收文件**：检测到的本地输出文件会被加密上传至微信 CDN，再发回对话
 - **长输出**：超过 2000 字符的消息自动分段发送，代码块保持完整
+
+实验性 Gemini 文本后端没有本机工具，不能自行读取已下载的本地文件。
+
+### 数据与信任边界
+
+- **默认保存在本机**：Bridge 配置、token、SQLite 会话/任务映射，以及入站媒体解密后的副本。
+- **微信传输链**：消息和 context token 会经过 iLink 端点；媒体会从微信 CDN 下载或上传到微信 CDN。
+- **模型提供商链**：prompt 以及 Agent 选取的上下文，会按所配置 Claude、OpenAI 或 Google 后端的数据处理方式发送，不会始终只留在 Bridge 主机上。
+- **主机权限**：本项目不是沙箱。Claude Code 和 Codex 继承本机 CLI/SDK 获得的文件系统与进程权限；Bridge 内的工具审批目前只适用于 Claude。
 
 ### 内置可靠性
 
@@ -134,9 +143,9 @@ bun run start --backend claude
                                                       └── bridge.js   (核心消息循环)
 ```
 
-Bridge 使用微信官方 **iLink Bot API**——和 OpenClaw 微信集成用的是同一套协议。全部通信走标准 HTTP/JSON + 长轮询（`getupdates`），类似 Telegram Bot API。媒体文件在 CDN 上用 AES-128-ECB 加密。
+Bridge 使用微信 **iLink bot 端点**。通信采用 HTTP/JSON + 长轮询（`getupdates`），类似 Telegram Bot API；媒体上传前按该协议使用 AES-128-ECB 加密。
 
-**这是腾讯官方 API。** 零封号风险，有《微信ClawBot功能使用条款》背书。
+源码能够说明项目调用了哪些端点，但不能保证平台身份、账号资格、持续可用性或“零封号风险”。部署前请核对当时适用于账号和使用场景的微信条款。
 
 ---
 
@@ -144,16 +153,18 @@ Bridge 使用微信官方 **iLink Bot API**——和 OpenClaw 微信集成用的
 
 | 功能 | cc-weixin | wechat-acp | 本项目 |
 |------|-----------|------------|--------|
-| AI 后端 | 仅 Claude | 6 种 (ACP) | Claude + Codex + Gemini（原生 SDK） |
+| AI 后端 | 仅 Claude | 6 种 (ACP) | Claude + Codex Agent；实验性 Gemini 文本后端 |
 | 会话管理 | 无 | 无 | `/new` `/resume` `/sessions` `/backend` |
-| 工具审批 | 全部自动放行 | 全部自动放行 | 交互式（1/2/3/4 选择） |
+| 工具审批 | 全部自动放行 | 全部自动放行 | Claude 可交互审批；Codex/Gemini 无 Bridge 审批提示 |
 | 模型切换 | 写死 | 按 preset | `/model` 数字选择 |
-| 文件传入 | 仅文字 | 图片+文件 | 图片 + 文件（AES-128-ECB 解密） |
-| 文件传出 | 无 | 无 | 自动检测路径 + CDN 上传 |
+| 文件传入 | 仅文字 | 图片+文件 | 为有本机工具的 Claude/Codex 提供本地路径 |
+| 文件传出 | 无 | 无 | 自动检测本地路径 + 加密上传微信 CDN |
 | 限流 | 无 | 无 | 每用户滑动窗口 |
 | 超时检测 | 无 | 无 | 看门狗 + 自动重置 |
 | 消息合并 | 无 | 无 | FlushGate（800ms 合并） |
-| 跨平台会话 | 无 | 无 | 看到所有 CC 会话（CLI + 其他 bridge） |
+| 跨平台会话 | 无 | 无 | 发现本机 Claude/Codex 会话（CLI + 其他 bridge） |
+
+对比项基于 2026-07-17 审阅时看到的项目说明，上游后续可能变化。
 
 ---
 

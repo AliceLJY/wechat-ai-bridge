@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from "fs
 import { resolve, dirname, join, isAbsolute } from "path";
 import { createInterface } from "readline/promises";
 import { stdin as input, stdout as output } from "process";
+import { resolveHomeDirectory } from "./runtime-paths.js";
 
 const REPO_DIR = import.meta.dir;
 const DEFAULT_CONFIG_PATH = join(REPO_DIR, "config.json");
@@ -15,7 +16,7 @@ const BACKEND_PROFILES = {
 };
 
 function homeDir() {
-  return process.env.HOME || REPO_DIR;
+  return resolveHomeDirectory();
 }
 
 function isNonEmptyString(v) {
@@ -163,7 +164,7 @@ function buildEnvFromConfig(config, backend, configPath) {
   const baseDir = dirname(configPath);
   const shared = config.shared || {};
   const env = {
-    CC_CWD: resolvePathMaybe(baseDir, shared.cwd || process.env.HOME || REPO_DIR),
+    CC_CWD: resolvePathMaybe(baseDir, shared.cwd || homeDir()),
     DEFAULT_VERBOSE_LEVEL: String(shared.defaultVerboseLevel ?? 1),
     BRIDGE_EXECUTOR: String(shared.executor || "direct"),
     DEFAULT_BACKEND: selected,
@@ -400,7 +401,7 @@ export async function runSetupWizard(options = {}) {
     console.log(`Config file: ${configPath}`);
     console.log("Press Enter to keep the current value.\n");
 
-    config.shared.cwd = await askText(rl, "Working directory", config.shared.cwd || process.env.HOME || REPO_DIR);
+    config.shared.cwd = await askText(rl, "Working directory", config.shared.cwd || homeDir());
     config.shared.defaultVerboseLevel = Number(await askText(rl, "Default verbose level", String(config.shared.defaultVerboseLevel ?? 1)));
     config.shared.executor = await askText(rl, "Executor mode (direct/local-agent)", config.shared.executor || "direct");
     config.shared.tasksDb = await askText(rl, "Tasks SQLite path", config.shared.tasksDb || "tasks.db");

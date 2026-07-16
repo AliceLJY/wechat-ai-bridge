@@ -2,12 +2,13 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { readdirSync, statSync, createReadStream } from "fs";
 import { basename, join } from "path";
-import { homedir } from "os";
 import { createInterface } from "readline";
+import { resolveHomeDirectory } from "../runtime-paths.js";
 
 // SDK 0.2.113+ 砍掉了 SDK 内置的 cli.js（改用 optional native binary），显式传 claude CLI 路径最稳。
 // 优先走环境变量（方便 launchd 兜底），否则用 Alice 两台机通用的 ~/.local/bin/claude。
-const CLAUDE_CLI_PATH = process.env.CLAUDE_CLI_PATH || join(homedir(), ".local/bin/claude");
+const HOME_DIR = resolveHomeDirectory();
+const CLAUDE_CLI_PATH = process.env.CLAUDE_CLI_PATH || join(HOME_DIR, ".local/bin/claude");
 
 // 让 bridge 产生的 session 也能出现在终端 `/resume` 列表里。
 // CC 2.1.104+ 会按 entrypoint ∈ {sdk-cli, sdk-ts, sdk-py} 过滤掉 SDK 来源 session；
@@ -20,14 +21,14 @@ if (!process.env.CLAUDE_CODE_ENTRYPOINT) {
 
 export function createAdapter(config = {}) {
   const defaultModel = config.model || process.env.CC_MODEL || "claude-sonnet-4-6";
-  const cwd = config.cwd || process.env.CC_CWD || process.env.HOME;
+  const cwd = config.cwd || process.env.CC_CWD || HOME_DIR;
   const permMode = process.env.CC_PERMISSION_MODE || "default";
 
   // Claude SDK 不支持并发 query()（两个子进程会冲突），用锁串行化
   let queryQueue = Promise.resolve();
 
   function listSessionFiles(limit = 10) {
-    const projectsDir = join(process.env.HOME, ".claude", "projects");
+    const projectsDir = join(HOME_DIR, ".claude", "projects");
     const allFiles = [];
 
     try {
@@ -56,7 +57,7 @@ export function createAdapter(config = {}) {
   }
 
   function findSessionFile(sessionId) {
-    const projectsDir = join(process.env.HOME, ".claude", "projects");
+    const projectsDir = join(HOME_DIR, ".claude", "projects");
     try {
       const dirs = readdirSync(projectsDir);
       for (const dir of dirs) {

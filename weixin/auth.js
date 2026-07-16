@@ -4,8 +4,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { iLinkGet } from "./api.js";
 import { QRStatus } from "./types.js";
+import { resolveHomeDirectory } from "../runtime-paths.js";
 
-const STATE_DIR = join(process.env.HOME || ".", ".wechat-ai-bridge");
+const STATE_DIR = join(resolveHomeDirectory(), ".wechat-ai-bridge");
 const TOKEN_PATH = join(STATE_DIR, "token.json");
 
 /**

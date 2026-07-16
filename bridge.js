@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // WeChat → AI Bridge（多后端：Claude Agent SDK / Codex SDK / Gemini）
 
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from "fs";
+import { mkdirSync, existsSync, readFileSync } from "fs";
 import { basename, join } from "path";
 import {
   getSession,
@@ -42,13 +42,16 @@ import { createMonitor } from "./weixin/monitor.js";
 import { sendText, sendLongText, sendImage, sendFile } from "./weixin/send.js";
 import { ItemType } from "./weixin/types.js";
 import { downloadImage, downloadFile as downloadMediaFile, uploadMedia } from "./weixin/media.js";
+import { persistInboundFile } from "./inbound-files.js";
+import { resolveHomeDirectory } from "./runtime-paths.js";
 
 // 防止嵌套检测
 delete process.env.CLAUDECODE;
 
 // ── 配置 ──
 const WECHAT_BOT_TOKEN = process.env.WECHAT_BOT_TOKEN;
-const CC_CWD = process.env.CC_CWD || process.env.HOME;
+const HOME_DIR = resolveHomeDirectory();
+const CC_CWD = process.env.CC_CWD || HOME_DIR;
 const DEFAULT_VERBOSE = Number(process.env.DEFAULT_VERBOSE_LEVEL || 1);
 const DEFAULT_BACKEND = process.env.DEFAULT_BACKEND || "claude";
 const REQUESTED_BACKENDS = String(process.env.ENABLED_BACKENDS || AVAILABLE_BACKENDS.join(","))
@@ -64,7 +67,7 @@ const EXECUTOR_MODE = String(process.env.BRIDGE_EXECUTOR || "direct").trim().toL
 const adapters = {};
 for (const name of REQUESTED_BACKENDS) {
   try {
-    adapters[name] = createBackend(name, { cwd: CC_CWD });
+    adapters[name] = await createBackend(name, { cwd: CC_CWD });
   } catch (e) {
     console.warn(`[适配器] ${name} 初始化失败: ${e.message}`);
   }
@@ -183,7 +186,7 @@ async function weSendLong(userId, text, contextToken) {
 const SENDABLE_EXT_GROUP = "png|jpg|jpeg|gif|webp|pdf|docx|xlsx|csv|html|svg|txt|md|json|js|ts|py|sh|yaml|yml|xml|log|zip|tar|gz";
 
 function extractFilePathsFromText(text, fileList) {
-  const HOME = process.env.HOME || "";
+  const HOME = HOME_DIR;
   const existing = new Set(fileList.map(f => f.filePath));
   const absRe = new RegExp(`(\\/(?:[\\w.\\-]+\\/)*[\\w.\\-\\u4e00-\\u9fff\\u3000-\\u303f\\uff00-\\uffef ]+\\.(?:${SENDABLE_EXT_GROUP}))`, "gi");
   const tildeRe = new RegExp(`(~\\/(?:[\\w.\\-]+\\/)*[\\w.\\-\\u4e00-\\u9fff\\u3000-\\u303f\\uff00-\\uffef ]+\\.(?:${SENDABLE_EXT_GROUP}))`, "gi");
@@ -468,7 +471,7 @@ async function processPrompt(ctx, prompt) {
     if (resultSuccess && capturedFiles.length > 0) {
       const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
       const DOC_EXTS = new Set([".pdf", ".docx", ".xlsx", ".csv", ".html", ".txt", ".md", ".json", ".js", ".ts", ".py", ".sh", ".yaml", ".yml", ".xml", ".log", ".zip", ".tar", ".gz"]);
-      const HOME = process.env.HOME || "";
+      const HOME = HOME_DIR;
       const sentPaths = new Set();
       for (const f of capturedFiles) {
         if (!f.filePath) continue;
@@ -850,10 +853,9 @@ async function onMessage(msg) {
         try {
           const result = await downloadImage(item);
           if (result) {
-            const localPath = join(FILE_DIR, `${Date.now()}-${result.filename}`);
-            writeFileSync(localPath, result.data);
-            mediaPrompt += `请看这张图片\n\n[图片文件: ${localPath}]\n`;
-            console.log(`[media] 图片已下载: ${localPath} (${result.data.length} bytes)`);
+            const saved = persistInboundFile(FILE_DIR, result.filename, result.data, { fallback: "image.jpg" });
+            mediaPrompt += `请看这张图片\n\n[图片文件: ${saved.path}]\n`;
+            console.log(`[media] 图片已下载: ${saved.path} (${result.data.length} bytes)`);
           } else {
             mediaPrompt += "[收到图片但下载失败]\n";
           }
@@ -865,10 +867,9 @@ async function onMessage(msg) {
         try {
           const result = await downloadMediaFile(item);
           if (result) {
-            const localPath = join(FILE_DIR, `${Date.now()}-${result.filename}`);
-            writeFileSync(localPath, result.data);
-            mediaPrompt += `请处理这个文件: ${result.filename}\n\n[文件: ${localPath}]\n`;
-            console.log(`[media] 文件已下载: ${localPath} (${result.data.length} bytes)`);
+            const saved = persistInboundFile(FILE_DIR, result.filename, result.data, { fallback: "file" });
+            mediaPrompt += `请处理这个文件: ${saved.filename}\n\n[文件: ${saved.path}]\n`;
+            console.log(`[media] 文件已下载: ${saved.path} (${result.data.length} bytes)`);
           } else {
             mediaPrompt += "[收到文件但下载失败]\n";
           }

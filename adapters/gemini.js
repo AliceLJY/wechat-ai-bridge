@@ -6,6 +6,7 @@ import { OAuth2Client } from "google-auth-library";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { randomUUID } from "crypto";
+import { resolveHomeDirectory } from "../runtime-paths.js";
 
 // Gemini CLI 公开的 OAuth Client（installed app，非秘密）
 // 从环境变量读取，避免 GitHub push protection 误拦
@@ -16,7 +17,8 @@ const CODE_ASSIST_ENDPOINT =
   process.env.CODE_ASSIST_ENDPOINT || "https://cloudcode-pa.googleapis.com";
 const CODE_ASSIST_API_VERSION =
   process.env.CODE_ASSIST_API_VERSION || "v1internal";
-const OAUTH_CREDS_PATH = join(process.env.HOME, ".gemini/oauth_creds.json");
+const HOME_DIR = resolveHomeDirectory();
+const OAUTH_CREDS_PATH = join(HOME_DIR, ".gemini", "oauth_creds.json");
 
 export function createAdapter(config = {}) {
   const defaultModel =
@@ -271,14 +273,14 @@ export function createAdapter(config = {}) {
     statusInfo(overrideModel) {
       return {
         model: overrideModel || defaultModel,
-        cwd: process.env.HOME,
+        cwd: HOME_DIR,
         mode: "Code Assist OAuth (Pro)",
       };
     },
 
     async listSessions(limit = 10) {
       // 扫描 Gemini CLI 的本地 session 文件：~/.gemini/tmp/*/chats/session-*.json
-      const geminiTmp = join(process.env.HOME, ".gemini", "tmp");
+      const geminiTmp = join(HOME_DIR, ".gemini", "tmp");
       const allFiles = [];
 
       try {

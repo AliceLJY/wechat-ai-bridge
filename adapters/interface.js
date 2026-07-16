@@ -7,22 +7,34 @@
 //   { type: "text", text }
 //   { type: "result", success, text, cost?, duration? }
 
-import { createAdapter as createClaudeAdapter } from "./claude.js";
-import { createAdapter as createCodexAdapter } from "./codex.js";
-import { createAdapter as createGeminiAdapter } from "./gemini.js";
-
-const ADAPTERS = {
-  claude: createClaudeAdapter,
-  codex: createCodexAdapter,
-  gemini: createGeminiAdapter,
+const ADAPTER_MODULES = {
+  claude: "./claude.js",
+  codex: "./codex.js",
+  gemini: "./gemini.js",
 };
 
-export function createBackend(name, config = {}) {
-  const factory = ADAPTERS[name];
-  if (!factory) {
-    throw new Error(`Unknown backend: ${name}. Available: ${Object.keys(ADAPTERS).join(", ")}`);
-  }
-  return factory(config);
-}
+export const AVAILABLE_BACKENDS = Object.freeze(Object.keys(ADAPTER_MODULES));
 
-export const AVAILABLE_BACKENDS = Object.keys(ADAPTERS);
+/** Load only the selected backend so an unavailable optional dependency in one
+ * adapter cannot prevent unrelated backends from starting. The importer
+ * argument is injectable for deterministic, dependency-free contract tests. */
+export async function createBackend(name, config = {}, importer = (specifier) => import(specifier)) {
+  const backendName = String(name || "").trim().toLowerCase();
+  const modulePath = ADAPTER_MODULES[backendName];
+  if (!modulePath) {
+    throw new Error(`Unknown backend: ${backendName}. Available: ${AVAILABLE_BACKENDS.join(", ")}`);
+  }
+
+  let adapterModule;
+  try {
+    adapterModule = await importer(modulePath);
+  } catch (error) {
+    const detail = error?.message ? `: ${error.message}` : "";
+    throw new Error(`Backend "${backendName}" could not be loaded${detail}`, { cause: error });
+  }
+
+  if (typeof adapterModule?.createAdapter !== "function") {
+    throw new Error(`Backend "${backendName}" does not export createAdapter(config)`);
+  }
+  return adapterModule.createAdapter(config);
+}
