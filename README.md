@@ -73,7 +73,7 @@ Reply `1`, `2`, `3`, or `4`. No buttons needed — just text.
 ### Bidirectional File Relay
 
 - **Send photos/files to Claude or Codex**: WeChat media is downloaded, decrypted (AES-128-ECB), stored under local `files/` with a sanitized portable filename, and passed to the agent as a local path
-- **Receive files from Claude or Codex**: detected local output files and screenshots are sent only when their real path is a regular file under that chat's current working directory. Dotfiles, config/token/log paths, symlink escapes, oversized files, and inbound `files/` uploads are rejected before reading.
+- **Receive files from Claude or Codex**: detected local output files and screenshots are sent only when both their lexical and real paths resolve to a regular file under that chat's current working directory. Hidden paths, control characters, common auth/config/credential/key/log/OAuth/secret/session/token names, symlink escapes, oversized files, and inbound `files/` uploads are rejected before reading.
 - **Long output**: messages over 2000 chars are auto-split into multiple messages, with code fences kept intact
 
 The experimental Gemini text backend cannot read the downloaded local file by itself because it has no local tools.
@@ -114,7 +114,7 @@ On first launch, a QR code appears in your terminal. Scan it with WeChat to auth
 
 `shared.allowedUserIds` is required and starts empty. Use exact, independently verified iLink `from_user_id` strings—not a display name, WeChat alias, or guessed value. The bridge never auto-claims the first contact. Validation fails while the list is empty; rejected sender IDs are written only to the local process log and are never added automatically. `start.js` serializes the configured list into the internal `WECHAT_ALLOWED_USER_IDS` environment variable before loading the bridge.
 
-On POSIX hosts, the bridge enforces mode `0600` on `config.json` and `~/.wechat-ai-bridge/token.json`, and mode `0700` on `~/.wechat-ai-bridge/`. It refuses symbolic links for these private paths; Windows deployments should also restrict these paths with local ACLs.
+On POSIX hosts, the bridge enforces mode `0600` on `config.json` and `~/.wechat-ai-bridge/token.json`, and mode `0700` on `~/.wechat-ai-bridge/` and the inbound `files/` directory. It refuses symbolic links for these private paths; Windows deployments should also restrict these paths with local ACLs.
 
 ---
 

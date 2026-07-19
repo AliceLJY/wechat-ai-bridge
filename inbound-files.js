@@ -1,6 +1,10 @@
 import { randomUUID } from "crypto";
-import { mkdirSync, writeFileSync } from "fs";
+import { writeFileSync } from "fs";
 import { isAbsolute, relative, resolve, sep } from "path";
+import {
+  ensurePrivateDirectory,
+  PRIVATE_DIRECTORY_MODE,
+} from "./private-storage.js";
 
 const WINDOWS_INVALID_CHARS = /[<>:"/\\|?*\u0000-\u001f\u007f]/g;
 const WINDOWS_RESERVED_STEM = /^(?:con|prn|aux|nul|clock\$|conin\$|conout\$|com[1-9]|lpt[1-9])$/i;
@@ -97,10 +101,16 @@ export function createInboundFileTarget(directory, remoteFilename, options = {})
 
 export function persistInboundFile(directory, remoteFilename, data, options = {}) {
   const target = createInboundFileTarget(directory, remoteFilename, options);
-  const ensureDirectory = options.ensureDirectory || mkdirSync;
   const writeFile = options.writeFile || writeFileSync;
 
-  ensureDirectory(target.directory, { recursive: true });
+  if (options.ensureDirectory) {
+    options.ensureDirectory(target.directory, {
+      recursive: true,
+      mode: PRIVATE_DIRECTORY_MODE,
+    });
+  } else {
+    ensurePrivateDirectory(target.directory);
+  }
   writeFile(target.path, data, { flag: "wx" });
   return target;
 }

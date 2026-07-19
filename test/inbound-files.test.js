@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { dirname, resolve } from "node:path";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import {
   createInboundFileTarget,
   persistInboundFile,
@@ -69,6 +71,26 @@ test("persistence uses exclusive creation and the sanitized display name without
 
   assert.equal(saved.filename, "_CON.txt");
   assert.equal(saved.storedName, "case-1-_CON.txt");
-  assert.deepEqual(calls[0], ["mkdir", resolve("fixtures/files"), { recursive: true }]);
+  assert.deepEqual(calls[0], ["mkdir", resolve("fixtures/files"), {
+    recursive: true,
+    mode: 0o700,
+  }]);
   assert.deepEqual(calls[1], ["write", saved.path, data, { flag: "wx" }]);
+});
+
+test("persistence repairs the inbound files directory to 0700", {
+  skip: process.platform === "win32",
+}, () => {
+  const root = mkdtempSync(join(tmpdir(), "wechat-inbound-mode-test-"));
+  try {
+    const filesDirectory = join(root, "files");
+    mkdirSync(filesDirectory, { mode: 0o755 });
+    chmodSync(filesDirectory, 0o755);
+    persistInboundFile(filesDirectory, "fixture.txt", Buffer.from("fixture"), {
+      uniqueId: "case-2",
+    });
+    assert.equal(statSync(filesDirectory).mode & 0o777, 0o700);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

@@ -1,11 +1,15 @@
-import { existsSync, mkdirSync, readFileSync, statSync } from "fs";
+import { existsSync, readFileSync, statSync } from "fs";
 import { resolve, dirname, join, isAbsolute } from "path";
 import { fileURLToPath } from "url";
 import { createInterface } from "readline/promises";
 import { stdin as input, stdout as output } from "process";
 import { ALLOWED_USER_IDS_ENV, normalizeAllowedUserIds } from "./access-control.js";
 import { AVAILABLE_EXECUTORS as IMPLEMENTED_EXECUTORS } from "./executor/interface.js";
-import { securePrivateFile, writePrivateFile } from "./private-storage.js";
+import {
+  ensurePrivateDirectory,
+  securePrivateFile,
+  writePrivateFile,
+} from "./private-storage.js";
 import { resolveHomeDirectory } from "./runtime-paths.js";
 
 const REPO_DIR = dirname(fileURLToPath(import.meta.url));
@@ -310,13 +314,13 @@ export function bootstrapWorkspace(options = {}) {
 
   if (exists && !options.force) {
     securePrivateFile(configPath);
-    mkdirSync(filesDir, { recursive: true });
+    ensurePrivateDirectory(filesDir);
     return { created: false, overwritten: false, configPath, filesDir, backend: selected };
   }
 
   const config = createBootstrapConfig(selected);
   writePrivateFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
-  mkdirSync(filesDir, { recursive: true });
+  ensurePrivateDirectory(filesDir);
   return { created: true, overwritten: exists, configPath, filesDir, backend: selected, config };
 }
 

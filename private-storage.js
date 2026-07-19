@@ -28,10 +28,10 @@ function lstatIfPresent(path) {
 function assertExpectedType(path, expected, stat = lstatSync(path)) {
   if (stat.isSymbolicLink()) throw new Error(`Refusing to use symbolic link for private ${expected}: ${path}`);
   if (expected === "directory" && !stat.isDirectory()) {
-    throw new Error(`Private state path is not a directory: ${path}`);
+    throw new Error(`Private path is not a directory: ${path}`);
   }
   if (expected === "file" && !stat.isFile()) {
-    throw new Error(`Private state path is not a regular file: ${path}`);
+    throw new Error(`Private path is not a regular file: ${path}`);
   }
 }
 

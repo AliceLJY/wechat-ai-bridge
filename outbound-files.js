@@ -16,6 +16,25 @@ export const OUTBOUND_DOCUMENT_EXTENSIONS = new Set([
   ".pdf", ".docx", ".xlsx", ".csv", ".html", ".txt", ".md", ".json",
   ".js", ".ts", ".py", ".sh", ".yaml", ".yml", ".xml", ".zip", ".tar", ".gz",
 ]);
+const SENSITIVE_DIRECTORY_NAMES = new Set([
+  "auth",
+  "config",
+  "configs",
+  "credential",
+  "credentials",
+  "keys",
+  "log",
+  "logs",
+  "oauth",
+  "secret",
+  "secrets",
+  "session",
+  "sessions",
+  "token",
+  "tokens",
+]);
+const SENSITIVE_FILE_STEM_RE = /^(?:access[-_.]?token|api[-_.]?key|auth|authorization|client[-_.]?secret|config|cookie|cookies|credential|credentials|debug|history|id[-_.]?(?:rsa|dsa|ecdsa|ed25519)|key|keys|login|oauth2?|oauth[-_.]?creds?|password|passwd|private[-_.]?key|refresh[-_.]?token|secret|secrets|service[-_.]?account|session|sessions|settings|stderr|stdout|token|tokens|transcript)(?:[-_.].*)?$/i;
+const SENSITIVE_FILE_PART_RE = /(?:^|[-_.])(?:access[-_.]?token|api[-_.]?key|auth|client[-_.]?secret|credential|credentials|id[-_.]?(?:rsa|dsa|ecdsa|ed25519)|key|keys|oauth2?|oauth[-_.]?creds?|password|passwd|private[-_.]?key|refresh[-_.]?token|secret|secrets|service[-_.]?account|session|sessions|token|tokens)(?=$|[-_.])/i;
 
 function rejected(reason) {
   return { ok: false, reason };
@@ -26,19 +45,41 @@ function isWithin(root, target) {
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
-function hasDotPathSegment(relativePath) {
-  return relativePath.split(sep).some((segment) => segment.startsWith("."));
+function normalizePolicyName(value) {
+  return String(value)
+    .normalize("NFKC")
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .toLowerCase();
 }
 
-function isSensitivePath(relativePath) {
-  const segments = relativePath.split(sep);
-  return segments.some((segment, index) => {
-    const lower = segment.toLowerCase();
-    if (["config", "log", "logs"].includes(lower)) return true;
-    if (index !== segments.length - 1) return false;
-    return /^(?:config|token|credentials?|secrets?)(?:\.|$)/i.test(segment)
-      || /\.log(?:\.|$)/i.test(segment);
-  });
+function pathSegments(relativePath) {
+  return relativePath.split(sep).filter(Boolean);
+}
+
+function hasSensitiveFileName(fileName) {
+  const normalized = normalizePolicyName(fileName);
+  if (/\.log(?:\.|$)/i.test(normalized)) return true;
+  const extension = extname(normalized);
+  const stem = extension ? normalized.slice(0, -extension.length) : normalized;
+  return SENSITIVE_FILE_STEM_RE.test(stem) || SENSITIVE_FILE_PART_RE.test(stem);
+}
+
+function blockedRelativePathReason(relativePath) {
+  const segments = pathSegments(relativePath);
+  for (let index = 0; index < segments.length; index++) {
+    const segment = segments[index];
+    if (/[\u0000-\u001f\u007f]/.test(segment)) return "invalid_path";
+    if (segment.startsWith(".")) return "dotfile";
+    if (
+      index < segments.length - 1
+      && SENSITIVE_DIRECTORY_NAMES.has(normalizePolicyName(segment))
+    ) {
+      return "sensitive_path";
+    }
+  }
+  return segments.length && hasSensitiveFileName(segments.at(-1))
+    ? "sensitive_path"
+    : null;
 }
 
 function readExact(fd, size) {
@@ -65,7 +106,8 @@ export function readOutboundFile(candidate, options = {}) {
 
   let fd = null;
   try {
-    const cwdReal = realpathSync(resolve(cwd));
+    const cwdLexical = resolve(cwd);
+    const cwdReal = realpathSync(cwdLexical);
     if (!statSync(cwdReal).isDirectory()) return rejected("invalid_cwd");
 
     const rawPath = candidate.trim();
@@ -74,7 +116,13 @@ export function readOutboundFile(candidate, options = {}) {
       : rawPath.startsWith("~/")
         ? resolve(homeDir, rawPath.slice(2))
         : rawPath;
-    const lexicalPath = isAbsolute(expanded) ? resolve(expanded) : resolve(cwdReal, expanded);
+    const lexicalPath = isAbsolute(expanded) ? resolve(expanded) : resolve(cwdLexical, expanded);
+    if (!isWithin(cwdLexical, lexicalPath) || lexicalPath === cwdLexical) {
+      return rejected("outside_cwd");
+    }
+    const lexicalReason = blockedRelativePathReason(relative(cwdLexical, lexicalPath));
+    if (lexicalReason) return rejected(lexicalReason);
+
     const lexicalStat = lstatSync(lexicalPath);
     if (lexicalStat.isSymbolicLink()) return rejected("symlink");
     if (!lexicalStat.isFile()) return rejected("not_regular_file");
@@ -82,9 +130,8 @@ export function readOutboundFile(candidate, options = {}) {
     const realPath = realpathSync(lexicalPath);
     if (!isWithin(cwdReal, realPath) || realPath === cwdReal) return rejected("outside_cwd");
 
-    const relativePath = relative(cwdReal, realPath);
-    if (hasDotPathSegment(relativePath)) return rejected("dotfile");
-    if (isSensitivePath(relativePath)) return rejected("sensitive_path");
+    const realReason = blockedRelativePathReason(relative(cwdReal, realPath));
+    if (realReason) return rejected(realReason);
 
     if (inboundDir) {
       try {

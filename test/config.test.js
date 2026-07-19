@@ -74,7 +74,10 @@ test("bootstrap creates a private starter config without inventing a user ID", (
     const result = bootstrapWorkspace({ backend: "claude", configPath });
     const written = JSON.parse(readFileSync(result.configPath, "utf8"));
     assert.deepEqual(written.shared.allowedUserIds, []);
-    if (process.platform !== "win32") assert.equal(statSync(configPath).mode & 0o777, 0o600);
+    if (process.platform !== "win32") {
+      assert.equal(statSync(configPath).mode & 0o777, 0o600);
+      assert.equal(statSync(result.filesDir).mode & 0o777, 0o700);
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

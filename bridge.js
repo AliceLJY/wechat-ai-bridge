@@ -1,7 +1,6 @@
 #!/usr/bin/env bun
 // WeChat → AI Bridge（多后端：Claude Agent SDK / Codex SDK / Gemini）
 
-import { mkdirSync } from "fs";
 import { join } from "path";
 import {
   getSession,
@@ -50,6 +49,7 @@ import {
   isAllowedUserId,
 } from "./access-control.js";
 import { readOutboundFile } from "./outbound-files.js";
+import { ensurePrivateDirectory } from "./private-storage.js";
 
 // 防止嵌套检测
 delete process.env.CLAUDECODE;
@@ -954,7 +954,7 @@ if (!WECHAT_BOT_TOKEN) {
 }
 
 const FILE_DIR = join(import.meta.dir, "files");
-mkdirSync(FILE_DIR, { recursive: true });
+ensurePrivateDirectory(FILE_DIR);
 
 console.log("WeChat-AI-Bridge 启动中...");
 console.log(`  后端: ${getFallbackBackend()}`);
