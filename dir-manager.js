@@ -7,6 +7,17 @@ import { resolveHomeDirectory } from "./runtime-paths.js";
 
 const MAX_HISTORY = 10;
 
+export function switchChatDirectory(dirManager, chatId, newDir) {
+  if (!dirManager || typeof dirManager.switchDir !== "function") {
+    throw new TypeError("Directory manager must provide switchDir(chatId, path)");
+  }
+  const result = dirManager.switchDir(chatId, newDir);
+  return {
+    ...result,
+    message: result.ok ? `工作目录: ${result.current}` : result.error,
+  };
+}
+
 export function createDirManager(defaultCwd) {
   // chatId -> { current, previous, history[] }
   const state = new Map();

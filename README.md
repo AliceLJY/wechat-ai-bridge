@@ -73,7 +73,7 @@ Reply `1`, `2`, `3`, or `4`. No buttons needed — just text.
 ### Bidirectional File Relay
 
 - **Send photos/files to Claude or Codex**: WeChat media is downloaded, decrypted (AES-128-ECB), stored under local `files/` with a sanitized portable filename, and passed to the agent as a local path
-- **Receive files from Claude or Codex**: detected local output files and screenshots are encrypted, uploaded to the WeChat CDN, and sent back to your chat
+- **Receive files from Claude or Codex**: detected local output files and screenshots are sent only when their real path is a regular file under that chat's current working directory. Dotfiles, config/token/log paths, symlink escapes, oversized files, and inbound `files/` uploads are rejected before reading.
 - **Long output**: messages over 2000 chars are auto-split into multiple messages, with code fences kept intact
 
 The experimental Gemini text backend cannot read the downloaded local file by itself because it has no local tools.
@@ -81,6 +81,7 @@ The experimental Gemini text backend cannot read the downloaded local file by it
 ### Data and Trust Boundaries
 
 - **Local by default**: bridge config, token, SQLite session/task mappings, and decrypted inbound file copies are stored on the bridge host.
+- **Fail-closed sender authorization**: only exact iLink `from_user_id` values listed in `shared.allowedUserIds` are processed. Unknown senders are rejected before media download, approval handling, commands, or model calls.
 - **WeChat transport**: messages and context tokens pass through iLink endpoints; media is downloaded from or uploaded to the WeChat CDN.
 - **Model providers**: prompts and any context selected by the agent follow the data handling of the configured Claude, OpenAI, or Google backend. They do not remain exclusively on the bridge host.
 - **Host access**: this bridge is not a sandbox. Claude Code and Codex run with the filesystem and process permissions granted to their local CLI/SDK configuration. Bridge-mediated tool approval currently applies only to Claude.
@@ -104,11 +105,16 @@ git clone https://github.com/AliceLJY/wechat-ai-bridge.git
 cd wechat-ai-bridge
 npm install              # or: bun install
 bun run bootstrap --backend claude
+# Edit config.json and set shared.allowedUserIds to verified iLink from_user_id values.
 bun run check --backend claude
 bun run start --backend claude
 ```
 
 On first launch, a QR code appears in your terminal. Scan it with WeChat to authenticate. Token is saved to `~/.wechat-ai-bridge/token.json` for subsequent launches.
+
+`shared.allowedUserIds` is required and starts empty. Use exact, independently verified iLink `from_user_id` strings—not a display name, WeChat alias, or guessed value. The bridge never auto-claims the first contact. Validation fails while the list is empty; rejected sender IDs are written only to the local process log and are never added automatically. `start.js` serializes the configured list into the internal `WECHAT_ALLOWED_USER_IDS` environment variable before loading the bridge.
+
+On POSIX hosts, the bridge enforces mode `0600` on `config.json` and `~/.wechat-ai-bridge/token.json`, and mode `0700` on `~/.wechat-ai-bridge/`. It refuses symbolic links for these private paths; Windows deployments should also restrict these paths with local ACLs.
 
 ---
 
@@ -127,7 +133,7 @@ All commands are plain text — just type and send:
 | `/model [name]` | Pick a model (reply with number) |
 | `/effort [level]` | Set thinking depth |
 | `/status` | Show backend, model, cwd, session |
-| `/dir [path]` | Switch working directory |
+| `/dir [path|-]` | Switch working directory; `-` returns to the previous directory |
 | `/verbose 0\|1\|2` | Change progress verbosity |
 
 ---
@@ -177,6 +183,7 @@ Comparison entries describe the projects as reviewed on 2026-07-17 and may chang
 {
   "shared": {
     "cwd": "/Users/you",
+    "allowedUserIds": ["replace-with-verified-from_user_id"],
     "defaultVerboseLevel": 1,
     "executor": "direct",
     "rateLimitMaxRequests": 10,

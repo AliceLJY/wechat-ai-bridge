@@ -1,10 +1,15 @@
 // iLink 扫码登录 + token 持久化
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { readFileSync } from "fs";
 import { join } from "path";
 import { iLinkGet } from "./api.js";
 import { QRStatus } from "./types.js";
 import { resolveHomeDirectory } from "../runtime-paths.js";
+import {
+  ensurePrivateDirectory,
+  securePrivateFile,
+  writePrivateFile,
+} from "../private-storage.js";
 
 const STATE_DIR = join(resolveHomeDirectory(), ".wechat-ai-bridge");
 const TOKEN_PATH = join(STATE_DIR, "token.json");
@@ -14,8 +19,9 @@ const TOKEN_PATH = join(STATE_DIR, "token.json");
  * @returns {{ botToken: string, botId: string, baseUrl: string } | null}
  */
 export function loadToken() {
+  ensureStateDirectory();
+  if (!securePrivateFile(TOKEN_PATH)) return null;
   try {
-    if (!existsSync(TOKEN_PATH)) return null;
     const data = JSON.parse(readFileSync(TOKEN_PATH, "utf-8"));
     if (data.botToken) return data;
   } catch {}
@@ -26,9 +32,16 @@ export function loadToken() {
  * 保存 token
  */
 export function saveToken(botToken, botId, baseUrl) {
-  if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true });
-  writeFileSync(TOKEN_PATH, JSON.stringify({ botToken, botId, baseUrl, savedAt: new Date().toISOString() }, null, 2));
+  ensureStateDirectory();
+  writePrivateFile(
+    TOKEN_PATH,
+    JSON.stringify({ botToken, botId, baseUrl, savedAt: new Date().toISOString() }, null, 2),
+  );
   console.log(`[auth] token saved to ${TOKEN_PATH}`);
+}
+
+export function ensureStateDirectory() {
+  return ensurePrivateDirectory(STATE_DIR);
 }
 
 /**

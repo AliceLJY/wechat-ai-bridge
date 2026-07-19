@@ -1,11 +1,12 @@
 // iLink 消息长轮询监听器
 // getupdates 长轮询收消息，类似 Telegram getUpdates
 
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { readFileSync } from "fs";
 import { join } from "path";
 import { iLinkPost } from "./api.js";
 import { MessageType } from "./types.js";
-import { STATE_DIR } from "./auth.js";
+import { ensureStateDirectory, STATE_DIR } from "./auth.js";
+import { securePrivateFile, writePrivateFile } from "../private-storage.js";
 
 const SYNC_BUF_PATH = join(STATE_DIR, "sync-buf.json");
 const POLL_TIMEOUT_MS = 38000; // 服务器 hold 35s，客户端 38s 超时
@@ -28,11 +29,10 @@ function classifyPollError(err) {
  * 加载上次的同步游标
  */
 function loadSyncBuf() {
+  if (!securePrivateFile(SYNC_BUF_PATH)) return "";
   try {
-    if (existsSync(SYNC_BUF_PATH)) {
-      const data = JSON.parse(readFileSync(SYNC_BUF_PATH, "utf-8"));
-      return data.buf || "";
-    }
+    const data = JSON.parse(readFileSync(SYNC_BUF_PATH, "utf-8"));
+    return data.buf || "";
   } catch {}
   return "";
 }
@@ -41,7 +41,8 @@ function loadSyncBuf() {
  * 保存同步游标
  */
 function saveSyncBuf(buf) {
-  writeFileSync(SYNC_BUF_PATH, JSON.stringify({ buf, updatedAt: new Date().toISOString() }));
+  ensureStateDirectory();
+  writePrivateFile(SYNC_BUF_PATH, JSON.stringify({ buf, updatedAt: new Date().toISOString() }));
 }
 
 /**
@@ -51,6 +52,7 @@ function saveSyncBuf(buf) {
  * @param {object} options
  */
 export function createMonitor(token, onMessage, options = {}) {
+  ensureStateDirectory();
   let running = false;
   let syncBuf = loadSyncBuf();
   let consecutiveFailures = 0;

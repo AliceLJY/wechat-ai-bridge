@@ -92,6 +92,7 @@ async function main() {
       const action = result.overwritten ? "Rewrote" : "Created";
       console.log(`${action} starter config at ${result.configPath}`);
       console.log(`Prepared files directory at ${result.filesDir}`);
+      console.log("Required: set shared.allowedUserIds to verified iLink from_user_id values.");
       console.log(`Next: edit ${result.configPath}, then run bun run check --backend ${result.backend}`);
       return;
     }

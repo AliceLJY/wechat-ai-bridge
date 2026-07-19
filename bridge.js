@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 // WeChat → AI Bridge（多后端：Claude Agent SDK / Codex SDK / Gemini）
 
-import { mkdirSync, existsSync, readFileSync } from "fs";
-import { basename, join } from "path";
+import { mkdirSync } from "fs";
+import { join } from "path";
 import {
   getSession,
   peekSession,
@@ -35,7 +35,7 @@ import { createExecutor } from "./executor/interface.js";
 import { getBackendProfile } from "./config.js";
 import { createFlushGate } from "./flush-gate.js";
 import { createRateLimiter } from "./rate-limiter.js";
-import { createDirManager } from "./dir-manager.js";
+import { createDirManager, switchChatDirectory } from "./dir-manager.js";
 import { createIdleMonitor } from "./idle-monitor.js";
 import { protectFileReferences } from "./file-ref-protect.js";
 import { createMonitor } from "./weixin/monitor.js";
@@ -44,6 +44,12 @@ import { ItemType } from "./weixin/types.js";
 import { downloadImage, downloadFile as downloadMediaFile, uploadMedia } from "./weixin/media.js";
 import { persistInboundFile } from "./inbound-files.js";
 import { resolveHomeDirectory } from "./runtime-paths.js";
+import {
+  ALLOWED_USER_IDS_ENV,
+  createAllowedUserSet,
+  isAllowedUserId,
+} from "./access-control.js";
+import { readOutboundFile } from "./outbound-files.js";
 
 // 防止嵌套检测
 delete process.env.CLAUDECODE;
@@ -62,6 +68,9 @@ const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60000);
 const IDLE_TIMEOUT_MS = Number(process.env.IDLE_TIMEOUT_MS || 1800000);
 const RESET_ON_IDLE_MS = Number(process.env.RESET_ON_IDLE_MS || 0);
 const EXECUTOR_MODE = String(process.env.BRIDGE_EXECUTOR || "direct").trim().toLowerCase();
+const ALLOWED_USER_IDS = createAllowedUserSet(process.env[ALLOWED_USER_IDS_ENV], {
+  source: ALLOWED_USER_IDS_ENV,
+});
 
 // ── 初始化后端适配器 ──
 const adapters = {};
@@ -133,7 +142,7 @@ function getBackendName(chatId) { return resolveBackend(chatId).backendName; }
 // ── 外部会话扫描（CLI / 其他 bridge 的会话）──
 async function getExternalSessionsForChat(chatId, backendName, adapter, limit = 10) {
   if (!adapter?.listSessions) return [];
-  const scanned = await adapter.listSessions(limit * 3);
+  const scanned = (await adapter.listSessions(limit * 3)) ?? [];
   const external = [];
   for (const session of scanned) {
     const sessionId = session.session_id || session.sessionId;
@@ -183,7 +192,7 @@ async function weSendLong(userId, text, contextToken) {
 }
 
 /** 从文本中提取可发送的文件路径 */
-const SENDABLE_EXT_GROUP = "png|jpg|jpeg|gif|webp|pdf|docx|xlsx|csv|html|svg|txt|md|json|js|ts|py|sh|yaml|yml|xml|log|zip|tar|gz";
+const SENDABLE_EXT_GROUP = "png|jpg|jpeg|gif|webp|pdf|docx|xlsx|csv|html|svg|txt|md|json|js|ts|py|sh|yaml|yml|xml|zip|tar|gz";
 
 function extractFilePathsFromText(text, fileList) {
   const HOME = HOME_DIR;
@@ -331,7 +340,7 @@ async function processPrompt(ctx, prompt) {
     await progress.start();
 
     // 注入 bridge 行为指令
-    const bridgeHint = "[系统提示: 你通过微信 Bridge 与用户对话。当用户要求发送文件、截图或查看图片时：1) 用工具找到/生成文件 2) 在回复中包含文件的完整绝对路径（如 /Users/xxx/file.png），bridge 会自动检测路径并发送给用户。绝对不要自己调用 curl 或任何 API。]\n\n";
+    const bridgeHint = "[系统提示: 你通过微信 Bridge 与用户对话。当用户要求发送文件、截图或查看图片时：1) 在当前工作目录下用工具找到/生成文件 2) 在回复中包含文件的完整绝对路径，bridge 会在安全检查后发送给用户。绝对不要自己调用 curl 或任何 API。]\n\n";
     const fullPrompt = bridgeHint + prompt;
     const session = getSession(chatId);
     const sessionId = (session && session.backend === backendName) ? session.session_id : null;
@@ -469,29 +478,24 @@ async function processPrompt(ctx, prompt) {
 
     // 文件/图片回传：CDN 上传 + 发送
     if (resultSuccess && capturedFiles.length > 0) {
-      const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
-      const DOC_EXTS = new Set([".pdf", ".docx", ".xlsx", ".csv", ".html", ".txt", ".md", ".json", ".js", ".ts", ".py", ".sh", ".yaml", ".yml", ".xml", ".log", ".zip", ".tar", ".gz"]);
-      const HOME = HOME_DIR;
       const sentPaths = new Set();
       for (const f of capturedFiles) {
         if (!f.filePath) continue;
-        const resolved = f.filePath.startsWith("~/") ? f.filePath.replace("~", HOME) : f.filePath;
-        // 跳过用户上传的文件（files/ 目录），不要回传给用户
-        if (resolved.startsWith(FILE_DIR)) continue;
-        if (sentPaths.has(resolved)) continue;
-        const ext = resolved.slice(resolved.lastIndexOf(".")).toLowerCase();
-        if (!IMAGE_EXTS.has(ext) && !DOC_EXTS.has(ext)) continue;
-        if (!existsSync(resolved)) continue;
-        sentPaths.add(resolved);
-        const fileName = basename(resolved);
+        const outbound = readOutboundFile(f.filePath, {
+          cwd: chatCwd,
+          homeDir: HOME_DIR,
+          inboundDir: FILE_DIR,
+        });
+        if (!outbound.ok) {
+          console.log(`[Bridge] 跳过文件回传: ${outbound.reason} (来源: ${f.source})`);
+          continue;
+        }
+        if (sentPaths.has(outbound.realPath)) continue;
+        sentPaths.add(outbound.realPath);
+        const { data: fileData, fileName, kind } = outbound;
         console.log(`[Bridge] 发送文件: ${fileName} (来源: ${f.source})`);
         try {
-          const fileData = readFileSync(resolved);
-          if (fileData.length > 20 * 1024 * 1024) {
-            console.log(`[Bridge] 跳过大文件: ${fileName} (${Math.round(fileData.length / 1024 / 1024)}MB)`);
-            continue;
-          }
-          if (IMAGE_EXTS.has(ext)) {
+          if (kind === "image") {
             console.log(`[Bridge] 上传图片: ${fileName} (${fileData.length} bytes)`);
             const ref = await uploadMedia(WECHAT_BOT_TOKEN, fileData, fileName, 1, ctx.userId);
             console.log(`[Bridge] 上传成功, 发送中...`);
@@ -601,7 +605,7 @@ async function handleCommand(ctx, text) {
         "/backend [name] — 切换后端 (claude/codex/gemini)",
         "/model [name] — 切换模型",
         "/effort [level] — 切换思考深度",
-        "/dir [path] — 切换工作目录",
+        "/dir [path|-] — 切换工作目录",
         "/verbose [0-2] — 输出详细度",
         "",
         "📊 状态",
@@ -797,10 +801,10 @@ async function handleCommand(ctx, text) {
 
     case "/dir": {
       if (args) {
-        dirManager.set(chatId, args);
-        await sendText(WECHAT_BOT_TOKEN, ctx.userId, `工作目录: ${dirManager.current(chatId)}`, ctx.contextToken);
+        const result = switchChatDirectory(dirManager, chatId, args);
+        await sendText(WECHAT_BOT_TOKEN, ctx.userId, result.message, ctx.contextToken);
       } else {
-        await sendText(WECHAT_BOT_TOKEN, ctx.userId, `当前: ${dirManager.current(chatId)}\n用法: /dir <path>`, ctx.contextToken);
+        await sendText(WECHAT_BOT_TOKEN, ctx.userId, `当前: ${dirManager.current(chatId)}\n用法: /dir <path|->`, ctx.contextToken);
       }
       break;
     }
@@ -836,7 +840,11 @@ async function handleCommand(ctx, text) {
 // ── 消息入口 ──
 
 async function onMessage(msg) {
-  const userId = msg.from_user_id;
+  const userId = msg?.from_user_id;
+  if (!isAllowedUserId(userId, ALLOWED_USER_IDS)) {
+    console.warn(`[authz] rejected message from unapproved from_user_id=${JSON.stringify(userId || "<missing>")}`);
+    return;
+  }
   const contextToken = msg.context_token;
   const chatId = userIdToNumeric(userId);
   const ctx = { userId, contextToken, chatId };
@@ -951,6 +959,7 @@ mkdirSync(FILE_DIR, { recursive: true });
 console.log("WeChat-AI-Bridge 启动中...");
 console.log(`  后端: ${getFallbackBackend()}`);
 console.log(`  工作目录: ${CC_CWD}`);
+console.log(`  允许用户: ${ALLOWED_USER_IDS.size}`);
 console.log(`  详细度: ${DEFAULT_VERBOSE}`);
 console.log(`  限流: ${RATE_LIMIT_MAX_REQUESTS}/${Math.round(RATE_LIMIT_WINDOW_MS / 1000)}s`);
 console.log(`  Idle: timeout=${IDLE_TIMEOUT_MS > 0 ? Math.round(IDLE_TIMEOUT_MS / 60000) + "min" : "off"}, reset=${RESET_ON_IDLE_MS > 0 ? Math.round(RESET_ON_IDLE_MS / 60000) + "min" : "off"}`);

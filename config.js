@@ -1,13 +1,17 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, statSync } from "fs";
 import { resolve, dirname, join, isAbsolute } from "path";
+import { fileURLToPath } from "url";
 import { createInterface } from "readline/promises";
 import { stdin as input, stdout as output } from "process";
+import { ALLOWED_USER_IDS_ENV, normalizeAllowedUserIds } from "./access-control.js";
+import { AVAILABLE_EXECUTORS as IMPLEMENTED_EXECUTORS } from "./executor/interface.js";
+import { securePrivateFile, writePrivateFile } from "./private-storage.js";
 import { resolveHomeDirectory } from "./runtime-paths.js";
 
-const REPO_DIR = import.meta.dir;
+const REPO_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CONFIG_PATH = join(REPO_DIR, "config.json");
 export const AVAILABLE_BACKENDS = ["claude", "codex", "gemini"];
-export const AVAILABLE_EXECUTORS = ["direct", "local-agent"];
+export const AVAILABLE_EXECUTORS = [...IMPLEMENTED_EXECUTORS];
 export const CLAUDE_PERMISSION_MODES = ["default", "bypassPermissions"];
 const BACKEND_PROFILES = {
   claude: { label: "Claude", maturity: "recommended", summary: "Recommended primary backend." },
@@ -92,6 +96,7 @@ export function createDefaultConfig() {
   return {
     shared: {
       cwd: homeDir(),
+      allowedUserIds: [],
       defaultVerboseLevel: 1,
       executor: "direct",
       tasksDb: "",
@@ -149,6 +154,7 @@ function mergeConfig(base, patch) {
 }
 
 function parseJsonConfig(configPath) {
+  securePrivateFile(configPath);
   const raw = readFileSync(configPath, "utf8");
   return mergeConfig(createDefaultConfig(), JSON.parse(raw));
 }
@@ -165,6 +171,9 @@ function buildEnvFromConfig(config, backend, configPath) {
   const shared = config.shared || {};
   const env = {
     CC_CWD: resolvePathMaybe(baseDir, shared.cwd || homeDir()),
+    [ALLOWED_USER_IDS_ENV]: JSON.stringify(normalizeAllowedUserIds(shared.allowedUserIds, {
+      source: "shared.allowedUserIds",
+    })),
     DEFAULT_VERBOSE_LEVEL: String(shared.defaultVerboseLevel ?? 1),
     BRIDGE_EXECUTOR: String(shared.executor || "direct"),
     DEFAULT_BACKEND: selected,
@@ -202,6 +211,15 @@ export function validateConfig(config, options = {}) {
   if (!shared || typeof shared !== "object") { pushIssue(issues, "shared", "is required."); return issues; }
 
   if (!isNonEmptyString(shared.cwd)) pushIssue(issues, "shared.cwd", "must be set.");
+  if (!Array.isArray(shared.allowedUserIds)) {
+    pushIssue(issues, "shared.allowedUserIds", "must be a non-empty array of exact WeChat from_user_id strings.");
+  } else {
+    try {
+      normalizeAllowedUserIds(shared.allowedUserIds, { source: "shared.allowedUserIds" });
+    } catch (error) {
+      pushIssue(issues, "shared.allowedUserIds", error.message.replace(/^shared\.allowedUserIds\s*/, ""));
+    }
+  }
   if (!AVAILABLE_EXECUTORS.includes(String(shared.executor || "").trim().toLowerCase())) {
     pushIssue(issues, "shared.executor", `must be one of: ${AVAILABLE_EXECUTORS.join(", ")}.`);
   }
@@ -236,6 +254,11 @@ export function validateResolvedEnv(env, options = {}) {
   const cwd = isNonEmptyString(env.CC_CWD) ? env.CC_CWD : homeDir();
 
   if (!AVAILABLE_BACKENDS.includes(selected)) pushIssue(issues, "DEFAULT_BACKEND", `must be one of: ${AVAILABLE_BACKENDS.join(", ")}.`);
+  try {
+    normalizeAllowedUserIds(env[ALLOWED_USER_IDS_ENV], { source: ALLOWED_USER_IDS_ENV });
+  } catch (error) {
+    pushIssue(issues, ALLOWED_USER_IDS_ENV, error.message.replace(`${ALLOWED_USER_IDS_ENV} `, ""));
+  }
   ensureExistingDirectory(issues, "CC_CWD", cwd);
   if (isNonEmptyString(env.SESSIONS_DB)) ensureParentDirectoryExists(issues, "SESSIONS_DB", env.SESSIONS_DB);
   if (isNonEmptyString(env.TASKS_DB)) ensureParentDirectoryExists(issues, "TASKS_DB", env.TASKS_DB);
@@ -286,12 +309,13 @@ export function bootstrapWorkspace(options = {}) {
   const exists = existsSync(configPath);
 
   if (exists && !options.force) {
+    securePrivateFile(configPath);
     mkdirSync(filesDir, { recursive: true });
     return { created: false, overwritten: false, configPath, filesDir, backend: selected };
   }
 
   const config = createBootstrapConfig(selected);
-  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  writePrivateFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
   mkdirSync(filesDir, { recursive: true });
   return { created: true, overwritten: exists, configPath, filesDir, backend: selected, config };
 }
@@ -355,6 +379,13 @@ export function applyRuntimeEnv(env) {
 
 function redactValue(key, value) {
   if (!value) return value;
+  if (key === ALLOWED_USER_IDS_ENV) {
+    try {
+      return `[${normalizeAllowedUserIds(value, { source: key }).length} configured]`;
+    } catch {
+      return "[invalid]";
+    }
+  }
   if (!/(TOKEN|SECRET|PASSWORD)/i.test(key)) return value;
   if (value.length <= 8) return "********";
   return `${value.slice(0, 4)}…${value.slice(-4)}`;
@@ -402,8 +433,18 @@ export async function runSetupWizard(options = {}) {
     console.log("Press Enter to keep the current value.\n");
 
     config.shared.cwd = await askText(rl, "Working directory", config.shared.cwd || homeDir());
+    const allowedUserIds = await askText(
+      rl,
+      "Allowed WeChat from_user_id values (JSON array, required)",
+      JSON.stringify(config.shared.allowedUserIds || []),
+    );
+    try {
+      config.shared.allowedUserIds = JSON.parse(allowedUserIds);
+    } catch {
+      config.shared.allowedUserIds = allowedUserIds;
+    }
     config.shared.defaultVerboseLevel = Number(await askText(rl, "Default verbose level", String(config.shared.defaultVerboseLevel ?? 1)));
-    config.shared.executor = await askText(rl, "Executor mode (direct/local-agent)", config.shared.executor || "direct");
+    config.shared.executor = await askText(rl, `Executor mode (${AVAILABLE_EXECUTORS.join("/")})`, config.shared.executor || "direct");
     config.shared.tasksDb = await askText(rl, "Tasks SQLite path", config.shared.tasksDb || "tasks.db");
 
     const targets = backendOnly ? [backendOnly] : AVAILABLE_BACKENDS;
@@ -437,6 +478,6 @@ export async function runSetupWizard(options = {}) {
   const issues = validateConfig(config, { backend: backendOnly, configPath });
   if (issues.length) throw new Error(formatValidationIssues(issues, "Setup aborted: config incomplete"));
 
-  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  writePrivateFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
   return { configPath, config };
 }

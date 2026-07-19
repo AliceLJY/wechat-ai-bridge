@@ -73,7 +73,7 @@ git push origin main
 ### 双向文件传输
 
 - **发图片/文件给 Claude 或 Codex**：微信媒体自动下载、AES 解密，以经过净化的跨平台文件名存入本机 `files/`，再把本地路径交给 Agent
-- **从 Claude 或 Codex 收文件**：检测到的本地输出文件会被加密上传至微信 CDN，再发回对话
+- **从 Claude 或 Codex 收文件**：只回传 realpath 位于当前 chat 工作目录内的普通文件；读取前拒绝 dotfile、配置/token/日志路径、符号链接逃逸、超大文件和入站 `files/` 文件
 - **长输出**：超过 2000 字符的消息自动分段发送，代码块保持完整
 
 实验性 Gemini 文本后端没有本机工具，不能自行读取已下载的本地文件。
@@ -81,6 +81,7 @@ git push origin main
 ### 数据与信任边界
 
 - **默认保存在本机**：Bridge 配置、token、SQLite 会话/任务映射，以及入站媒体解密后的副本。
+- **发起者默认拒绝**：只有 `shared.allowedUserIds` 中精确匹配 iLink `from_user_id` 的用户会被处理。未知发起者会在媒体下载、审批、命令和模型调用之前被拒绝。
 - **微信传输链**：消息和 context token 会经过 iLink 端点；媒体会从微信 CDN 下载或上传到微信 CDN。
 - **模型提供商链**：prompt 以及 Agent 选取的上下文，会按所配置 Claude、OpenAI 或 Google 后端的数据处理方式发送，不会始终只留在 Bridge 主机上。
 - **主机权限**：本项目不是沙箱。Claude Code 和 Codex 继承本机 CLI/SDK 获得的文件系统与进程权限；Bridge 内的工具审批目前只适用于 Claude。
@@ -104,11 +105,16 @@ git clone https://github.com/AliceLJY/wechat-ai-bridge.git
 cd wechat-ai-bridge
 npm install              # 或者: bun install
 bun run bootstrap --backend claude
+# 编辑 config.json，把核验过的 iLink from_user_id 填入 shared.allowedUserIds。
 bun run check --backend claude
 bun run start --backend claude
 ```
 
 首次启动时终端显示二维码，用微信扫码认证。Token 保存在 `~/.wechat-ai-bridge/token.json`，后续启动自动使用。
+
+`shared.allowedUserIds` 是必填项，初始为空，例如 `"allowedUserIds": ["replace-with-verified-from_user_id"]`。这里只能填写经过独立核验的 iLink `from_user_id`，不能填显示名、微信昵称，也不能猜值。Bridge 不会自动认领第一个联系人；列表为空时配置校验会明确失败。被拒绝的 sender ID 只写入本机进程日志，不会自动加入白名单。`start.js` 会把配置序列化到内部环境变量 `WECHAT_ALLOWED_USER_IDS`，再加载 Bridge。
+
+在 POSIX 主机上，Bridge 会把 `config.json`、`~/.wechat-ai-bridge/token.json` 权限设为 `0600`，把 `~/.wechat-ai-bridge/` 目录权限设为 `0700`，并拒绝这些私有路径使用符号链接。Windows 部署还应通过本机 ACL 限制这些路径。
 
 ---
 
@@ -127,7 +133,7 @@ bun run start --backend claude
 | `/model [name]` | 选模型（回复数字） |
 | `/effort [level]` | 设置思考深度 |
 | `/status` | 查看后端、模型、目录、会话 |
-| `/dir [path]` | 切换工作目录 |
+| `/dir [path|-]` | 切换工作目录；`-` 返回上一个目录 |
 | `/verbose 0\|1\|2` | 调整进度详细度 |
 
 ---
