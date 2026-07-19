@@ -78,9 +78,10 @@ test("persistence uses exclusive creation and the sanitized display name without
   assert.deepEqual(calls[1], ["write", saved.path, data, { flag: "wx" }]);
 });
 
-test("persistence repairs the inbound files directory to 0700", {
-  skip: process.platform === "win32",
-}, () => {
+test("persistence repairs the inbound files directory to 0700", () => {
+  // Windows does not expose POSIX permission bits; Bun 1.3.12 also ignores
+  // node:test's object-form skip option, so keep the platform guard in-body.
+  if (process.platform === "win32") return;
   const root = mkdtempSync(join(tmpdir(), "wechat-inbound-mode-test-"));
   try {
     const filesDirectory = join(root, "files");
