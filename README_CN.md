@@ -4,7 +4,7 @@
 
 **在微信私聊里使用 Claude Code 和 Codex**
 
-*从微信调用本机 Claude Code 或 Codex Agent，支持 Claude 工具审批和文件回传；另提供实验性的 Gemini Code Assist 文本后端。*
+*从微信调用本机 Claude Code 或 Codex Agent，支持 Claude 工具审批和文件回传。*
 
 自托管的微信 AI Bridge，使用微信 iLink bot 端点。iLink 可用时，微信传输本身不需要另建隧道；各 AI 后端仍需满足自身网络连通和账号资格要求。
 
@@ -19,7 +19,22 @@
 
 > **和 cc-weixin / wechat-acp 有什么区别？**
 >
-> 本项目重点提供**会话管理**（`/new` `/resume` `/sessions`）、**后端选择**（Claude + Codex，以及实验性的 Gemini 文本兼容）、**Claude 工具审批**和**双向文件回传**——与 [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge) 属于同一类工作流，传输入口改为微信。
+> 本项目重点提供**会话管理**（`/new` `/resume` `/sessions`）、**后端选择**（Claude + Codex）、**Claude 工具审批**和**双向文件回传**——与 [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge) 属于同一类工作流，传输入口改为微信。
+
+> **关于 `gemini` 后端——个人账号请不要使用。**
+>
+> 该适配器调用的是 Code Assist 内部端点 `cloudcode-pa.googleapis.com`，OAuth token
+> 读自 `~/.gemini/oauth_creds.json`，而那个文件由独立的 `gemini` CLI 登录时写入。
+> Google 已于 2026-06-18 对个人账号（免费 / AI Pro / AI Ultra）停止该 CLI 服务，
+> 这个文件不再产生，适配器也就无法完成认证。继任者 Antigravity CLI（`agy`）
+> 不会写出可直接替代它的凭证文件。
+>
+> 另有一点比"功能坏了"更要紧：Google 明确表示，第三方软件使用 Gemini CLI 的 OAuth
+> 凭证属于违反政策的用法，可能触发滥用检测或账号限制。请不要把该适配器指向以这种
+> 方式获取的凭证。代码保留是给通过自身受支持路径认证的 Code Assist
+> Standard/Enterprise 部署使用的。
+>
+> Claude 与 Codex 后端不受影响。
 
 ---
 
@@ -47,7 +62,7 @@ Bridge 的会话映射和偏好保存在 SQLite。Claude、Codex 可从各自的
 |------|----------------|------|
 | `claude` | Agent SDK + 本机 Claude 可执行文件；Agent 工具、可恢复会话、Bridge 工具审批 | 主推荐 |
 | `codex` | Codex SDK/CLI；Agent 工具和可恢复 thread，不提供 Bridge 审批提示 | 主推荐 |
-| `gemini` | Google Code Assist API 文本生成，历史只在内存中；不执行本机工具 | 实验兼容 |
+| `gemini` | Google Code Assist API 文本生成，历史只在内存中；不执行本机工具 | 个人账号已不可用——见下方说明 |
 
 通常通过启动参数 `--backend` 选择后端。只有高级部署显式加载了多个适配器时，`/backend` 才能在这些已加载后端之间切换。
 
@@ -159,7 +174,7 @@ Bridge 使用微信 **iLink bot 端点**。通信采用 HTTP/JSON + 长轮询（
 
 | 功能 | cc-weixin | wechat-acp | 本项目 |
 |------|-----------|------------|--------|
-| AI 后端 | 仅 Claude | 6 种 (ACP) | Claude + Codex Agent；实验性 Gemini 文本后端 |
+| AI 后端 | 仅 Claude | 6 种 (ACP) | Claude + Codex Agent |
 | 会话管理 | 无 | 无 | `/new` `/resume` `/sessions` `/backend` |
 | 工具审批 | 全部自动放行 | 全部自动放行 | Claude 可交互审批；Codex/Gemini 无 Bridge 审批提示 |
 | 模型切换 | 写死 | 按 preset | `/model` 数字选择 |

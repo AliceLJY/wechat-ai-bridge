@@ -4,7 +4,7 @@
 
 **Claude Code and Codex. In WeChat Private Chat.**
 
-*Run local Claude Code or Codex agent sessions from WeChat, with Claude tool approval and file relay; an experimental Gemini Code Assist text backend is also available.*
+*Run local Claude Code or Codex agent sessions from WeChat, with Claude tool approval and file relay.*
 
 A self-hosted bridge that uses WeChat's iLink bot endpoints. The WeChat transport itself needs no separate tunnel where iLink is available; each AI backend still needs its normal network access and account eligibility.
 
@@ -19,7 +19,24 @@ A self-hosted bridge that uses WeChat's iLink bot endpoints. The WeChat transpor
 
 > **How is this different from cc-weixin / wechat-acp?**
 >
-> This project focuses on **session management** (`/new` `/resume` `/sessions`), **backend selection** (Claude + Codex, with experimental Gemini text compatibility), **Claude tool approval**, and **bidirectional file relay** — the same workflow family as [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge), now using WeChat transport.
+> This project focuses on **session management** (`/new` `/resume` `/sessions`), **backend selection** (Claude + Codex), **Claude tool approval**, and **bidirectional file relay** — the same workflow family as [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge), now using WeChat transport.
+
+> **On the `gemini` backend — do not use it on a personal account.**
+>
+> This adapter calls the internal Code Assist endpoint `cloudcode-pa.googleapis.com`
+> and reads its OAuth token from `~/.gemini/oauth_creds.json`, a file written by the
+> standalone `gemini` CLI login. Google retired that CLI for personal accounts
+> (free, AI Pro, AI Ultra) on 2026-06-18, so the file is no longer produced and the
+> adapter cannot authenticate. Its successor, the Antigravity CLI (`agy`), does not
+> write a drop-in replacement for it.
+>
+> Separately — and this matters more than the breakage — Google has stated that using
+> Gemini CLI OAuth credentials from third-party software is a policy-violating use
+> case that may trigger abuse detection or account restrictions. Do not point this
+> adapter at credentials obtained that way. The code is kept for Code Assist
+> Standard/Enterprise deployments that authenticate through their own supported path.
+>
+> Claude and Codex backends are unaffected.
 
 ---
 
@@ -47,7 +64,7 @@ Bridge session mappings and preferences persist in SQLite. Claude and Codex sess
 |---------|----------------------------|--------|
 | `claude` | Agent SDK + local Claude executable; agent tools, resumable sessions, bridge-mediated tool approval | Recommended |
 | `codex` | Codex SDK/CLI; agent tools and resumable threads, without bridge-mediated approval prompts | Recommended |
-| `gemini` | Google Code Assist API text generation with in-memory history; no local tool execution | Experimental |
+| `gemini` | Google Code Assist API text generation with in-memory history; no local tool execution | Retired for personal accounts — see note below |
 
 Select the backend at startup with `--backend`. `/backend` can switch only among adapters explicitly loaded by an advanced multi-adapter deployment.
 
@@ -98,7 +115,7 @@ The experimental Gemini text backend cannot read the downloaded local file by it
 
 ## Quick Start
 
-**Prerequisites:** [Bun](https://bun.sh) runtime, WeChat version >= 2026.3.20, and at least one backend CLI: [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://openai.com/index/codex/), or [Gemini CLI](https://ai.google.dev/gemini-api/docs/ai-studio-quickstart).
+**Prerequisites:** [Bun](https://bun.sh) runtime, WeChat version >= 2026.3.20, and at least one backend CLI: [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex](https://openai.com/index/codex/).
 
 ```bash
 git clone https://github.com/AliceLJY/wechat-ai-bridge.git
@@ -159,7 +176,7 @@ The source code can show which endpoints it calls, but it cannot guarantee platf
 
 | Feature | cc-weixin | wechat-acp | This project |
 |---------|-----------|------------|-------------|
-| AI backends | Claude only | 6 via ACP | Claude + Codex agents; experimental Gemini text backend |
+| AI backends | Claude only | 6 via ACP | Claude + Codex agents |
 | Session management | None | None | `/new` `/resume` `/sessions` `/backend` |
 | Tool approval | Auto-allow | Auto-allow | Interactive for Claude; no bridge approval prompt for Codex/Gemini |
 | Model switching | Hardcoded | Per-preset | `/model` with numbered selection |
