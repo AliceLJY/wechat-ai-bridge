@@ -21,20 +21,24 @@ A self-hosted bridge that uses WeChat's iLink bot endpoints. The WeChat transpor
 >
 > This project focuses on **session management** (`/new` `/resume` `/sessions`), **backend selection** (Claude + Codex), **Claude tool approval**, and **bidirectional file relay** — the same workflow family as [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge), now using WeChat transport.
 
-> **On the `gemini` backend — do not use it on a personal account.**
+> **Do not use the `gemini` backend. This is an account-safety issue, not just a dead feature.**
 >
-> This adapter calls the internal Code Assist endpoint `cloudcode-pa.googleapis.com`
-> and reads its OAuth token from `~/.gemini/oauth_creds.json`, a file written by the
-> standalone `gemini` CLI login. Google retired that CLI for personal accounts
-> (free, AI Pro, AI Ultra) on 2026-06-18, so the file is no longer produced and the
-> adapter cannot authenticate. Its successor, the Antigravity CLI (`agy`), does not
-> write a drop-in replacement for it.
+> This adapter reads `~/.gemini/oauth_creds.json` and reuses the Gemini CLI's own OAuth
+> client to reach the internal Code Assist endpoint `cloudcode-pa.googleapis.com`.
+> Google's FAQ names this exact pattern: *"Using third-party software, tools, or services
+> to harvest or piggyback on Gemini CLI's OAuth authentication to access our backend
+> services is a direct violation of our applicable terms and policies"*, and says it
+> *"may be grounds for immediate suspension or termination of your account."* Paid
+> subscribers have reportedly lost access over it. **This applies regardless of your plan
+> tier — the prohibited thing is the mechanism, not the account type.**
 >
-> Separately — and this matters more than the breakage — Google has stated that using
-> Gemini CLI OAuth credentials from third-party software is a policy-violating use
-> case that may trigger abuse detection or account restrictions. Do not point this
-> adapter at credentials obtained that way. The code is kept for Code Assist
-> Standard/Enterprise deployments that authenticate through their own supported path.
+> Separately, Google retired the standalone `gemini` CLI for personal accounts on
+> 2026-06-18, so `oauth_creds.json` is no longer produced and the adapter cannot
+> authenticate there either. Its successor, the Antigravity CLI (`agy`), does not write a
+> drop-in replacement.
+>
+> The supported way for third-party software to reach Gemini models is a **Vertex AI or
+> Google AI Studio API key**.
 >
 > Claude and Codex backends are unaffected.
 

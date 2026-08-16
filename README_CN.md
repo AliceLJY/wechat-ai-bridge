@@ -21,18 +21,22 @@
 >
 > 本项目重点提供**会话管理**（`/new` `/resume` `/sessions`）、**后端选择**（Claude + Codex）、**Claude 工具审批**和**双向文件回传**——与 [telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge) 属于同一类工作流，传输入口改为微信。
 
-> **关于 `gemini` 后端——个人账号请不要使用。**
+> **请不要使用 `gemini` 后端。这是账号安全问题，不只是功能失效。**
 >
-> 该适配器调用的是 Code Assist 内部端点 `cloudcode-pa.googleapis.com`，OAuth token
-> 读自 `~/.gemini/oauth_creds.json`，而那个文件由独立的 `gemini` CLI 登录时写入。
-> Google 已于 2026-06-18 对个人账号（免费 / AI Pro / AI Ultra）停止该 CLI 服务，
-> 这个文件不再产生，适配器也就无法完成认证。继任者 Antigravity CLI（`agy`）
-> 不会写出可直接替代它的凭证文件。
+> 该适配器读取 `~/.gemini/oauth_creds.json`，复用 Gemini CLI 自己的 OAuth client
+> 去访问 Code Assist 内部端点 `cloudcode-pa.googleapis.com`。Google 官方 FAQ 点的
+> 正是这种用法：*"Using third-party software, tools, or services to harvest or piggyback
+> on Gemini CLI's OAuth authentication to access our backend services is a direct
+> violation of our applicable terms and policies"*，并称其 *"may be grounds for immediate
+> suspension or termination of your account"*（可构成立即暂停或终止账号的理由）。
+> 已有付费订阅用户因此失去访问权限的报告。**这与套餐等级无关——被禁的是这个机制本身，
+> 不是账号类型。**
 >
-> 另有一点比"功能坏了"更要紧：Google 明确表示，第三方软件使用 Gemini CLI 的 OAuth
-> 凭证属于违反政策的用法，可能触发滥用检测或账号限制。请不要把该适配器指向以这种
-> 方式获取的凭证。代码保留是给通过自身受支持路径认证的 Code Assist
-> Standard/Enterprise 部署使用的。
+> 另外，Google 已于 2026-06-18 对个人账号停止独立 `gemini` CLI 服务，
+> `oauth_creds.json` 不再产生，适配器在个人账号上也已无法完成认证。
+> 继任者 Antigravity CLI（`agy`）不会写出可直接替代它的凭证文件。
+>
+> 第三方软件访问 Gemini 模型的受支持方式是 **Vertex AI 或 Google AI Studio API key**。
 >
 > Claude 与 Codex 后端不受影响。
 
