@@ -30,7 +30,7 @@ Commands:
   config        Print the resolved runtime config (secrets redacted)
 
 Options:
-  --backend, -b   claude | codex | gemini (experimental)
+  --backend, -b   claude | codex   (gemini: disabled, see README)
   --config, -c    Path to config.json
   --force, -f     Overwrite an existing config file during bootstrap
   --help, -h      Show this help

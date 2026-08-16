@@ -602,7 +602,7 @@ async function handleCommand(ctx, text) {
         "/resume <id> — 恢复指定会话",
         "",
         "⚙️ 设置",
-        "/backend [name] — 切换后端 (claude/codex/gemini)",
+        "/backend [name] — 切换后端 (claude/codex；gemini 已停用)",
         "/model [name] — 切换模型",
         "/effort [level] — 切换思考深度",
         "/dir [path|-] — 切换工作目录",

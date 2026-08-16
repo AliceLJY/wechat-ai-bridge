@@ -20,7 +20,7 @@ export const CLAUDE_PERMISSION_MODES = ["default", "bypassPermissions"];
 const BACKEND_PROFILES = {
   claude: { label: "Claude", maturity: "recommended", summary: "Recommended primary backend." },
   codex: { label: "Codex", maturity: "recommended", summary: "Recommended primary backend." },
-  gemini: { label: "Gemini", maturity: "experimental", summary: "Experimental compatibility backend." },
+  gemini: { label: "Gemini", maturity: "disabled", summary: "Disabled: piggybacks on Gemini CLI OAuth, which Google prohibits for third-party software. See README." },
 };
 
 function homeDir() {

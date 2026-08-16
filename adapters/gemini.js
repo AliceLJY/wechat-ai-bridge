@@ -79,7 +79,44 @@ export function listLocalGeminiSessions(homeDirectory, limit = 10) {
   return results;
 }
 
+// ---------------------------------------------------------------------------
+// Disabled on purpose. Do not re-enable without a supported auth path.
+//
+// This adapter authenticates by piggybacking on the Gemini CLI's OAuth
+// credentials (~/.gemini/oauth_creds.json plus the CLI's own OAuth client).
+// Google's FAQ (https://geminicli.com/docs/resources/faq/) states:
+//
+//   "Using third-party software, tools, or services to harvest or piggyback on
+//    Gemini CLI's OAuth authentication to access our backend services is a
+//    direct violation of our applicable terms and policies"
+//   "...may be grounds for immediate suspension or termination of your account."
+//
+// That applies to every plan tier — the prohibited thing is the mechanism, not
+// the account type. The implementation below is kept intact only so the shape
+// is available if Google ever ships a supported path for it.
+//
+// NOTE: listLocalGeminiSessions() above is NOT affected — it only reads local
+// history files under ~/.gemini/tmp and makes no network call.
+// ---------------------------------------------------------------------------
+const BACKEND_DISABLED = [
+  "The `gemini` backend is disabled: it piggybacks on Gemini CLI OAuth credentials,",
+  "which Google's terms prohibit for third-party software and which they say may be",
+  "grounds for immediate suspension or termination of your account.",
+  "See https://geminicli.com/docs/resources/faq/",
+  "",
+  "This applies to every plan tier, including Code Assist Standard/Enterprise —",
+  "the mechanism is what is prohibited, not the account type.",
+  "",
+  "Use the Claude or Codex backend instead, or reach Gemini models with",
+  "your own Vertex AI / Google AI Studio API key.",
+].join("\n");
+
 export function createAdapter(config = {}) {
+  throw new Error(BACKEND_DISABLED);
+}
+
+// Original implementation, unreachable by design — see the note above.
+function createAdapterUnused(config = {}) {
   const defaultModel =
     config.model || process.env.GEMINI_MODEL || "gemini-2.5-pro";
   const proxy = process.env.HTTPS_PROXY || null;
