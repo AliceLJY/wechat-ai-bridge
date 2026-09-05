@@ -150,7 +150,7 @@ All commands are plain text — just type and send:
 | `/cancel` | Abort the running task |
 | `/sessions` | List recent sessions |
 | `/resume <#\|id>` | Resume by sequence number or session ID |
-| `/backend [name]` | Switch backend (claude/codex/gemini) |
+| `/backend [name]` | Switch backend (claude/codex) |
 | `/model [name]` | Pick a model (reply with number) |
 | `/effort [level]` | Set thinking depth |
 | `/status` | Show backend, model, cwd, session |

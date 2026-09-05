@@ -148,7 +148,7 @@ bun run start --backend claude
 | `/cancel` | 中断正在执行的任务 |
 | `/sessions` | 查看最近会话 |
 | `/resume <序号\|id>` | 按序号或 ID 恢复会话 |
-| `/backend [name]` | 切换后端（claude/codex/gemini） |
+| `/backend [name]` | 切换后端（claude/codex） |
 | `/model [name]` | 选模型（回复数字） |
 | `/effort [level]` | 设置思考深度 |
 | `/status` | 查看后端、模型、目录、会话 |
