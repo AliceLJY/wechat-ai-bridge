@@ -68,6 +68,14 @@ def is_final(e, after):
     return (p.get("metadata") or {}).get("message_kind") != "commentary"
 
 
+def is_streaming(e, after):
+    """Muse keeps one assistant message open while it works: it may write a word,
+    run tools for minutes, then keep writing into the same message. Until
+    metadata.streaming disappears, whatever text is there is a fragment."""
+    return (e.get("event_name") == "message.assistant" and _seq(e) > after
+            and bool((_payload(e).get("metadata") or {}).get("streaming")))
+
+
 def _find_id(obj):
     if isinstance(obj, dict):
         for key in ("session_id", "sessionId", "chat_id", "id"):
@@ -110,7 +118,7 @@ def turn(thread, timeout, since=""):
         # late, say): the bridge cannot push on its own, so hand them over now.
         if since.strip().isdigit():
             for e in recent:
-                if is_final(e, int(since)):
+                if is_final(e, int(since)) and not is_streaming(e, int(since)):
                     emit({"type": "missed", "seq": _seq(e), "text": _text(e)})
 
         gw._open("chat.stream", body={"items": [{"type": "text", "text": text}],
@@ -132,7 +140,7 @@ def turn(thread, timeout, since=""):
                 if not delivered and time.time() - started > DELIVERY_TIMEOUT_S:
                     fail("消息没有送达 Muse（90 秒内没出现在它的对话里），请重发一次", 5)
             finals = [e for e in evs if is_final(e, baseline)]
-            if finals:
+            if finals and not any(is_streaming(e, baseline) for e in evs):
                 emit({"type": "reply", "seq": max(_seq(e) for e in finals),
                       "text": "\n\n".join(_text(e) for e in finals),
                       "seconds": int(time.time() - started)})
