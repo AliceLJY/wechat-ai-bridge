@@ -14,13 +14,14 @@ import { resolveHomeDirectory } from "./runtime-paths.js";
 
 const REPO_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CONFIG_PATH = join(REPO_DIR, "config.json");
-export const AVAILABLE_BACKENDS = ["claude", "codex", "gemini"];
+export const AVAILABLE_BACKENDS = ["claude", "codex", "gemini", "muse"];
 export const AVAILABLE_EXECUTORS = [...IMPLEMENTED_EXECUTORS];
 export const CLAUDE_PERMISSION_MODES = ["default", "bypassPermissions"];
 const BACKEND_PROFILES = {
   claude: { label: "Claude", maturity: "recommended", summary: "Recommended primary backend." },
   codex: { label: "Codex", maturity: "recommended", summary: "Recommended primary backend." },
   gemini: { label: "Gemini", maturity: "disabled", summary: "Disabled: piggybacks on Gemini CLI OAuth, which Google prohibits for third-party software. See README." },
+  muse: { label: "Muse", maturity: "experimental", summary: "Experimental: talks to your muse.ai agent through the community muse-cli (unofficial, cookie login). See README." },
 };
 
 function homeDir() {
@@ -71,6 +72,9 @@ function getBackendCredentialWarning(backend) {
   }
   if (backend === "codex") {
     return { path: join(homeDir(), ".codex"), message: "Codex backend expects login state under ~/.codex." };
+  }
+  if (backend === "muse") {
+    return { path: join(homeDir(), ".config", "muse-cli", "cookies.txt"), message: "Muse backend expects muse-cli login cookies under ~/.config/muse-cli (run: muse-cli status)." };
   }
   return { path: join(homeDir(), ".gemini", "oauth_creds.json"), message: "Gemini backend expects oauth_creds.json under ~/.gemini." };
 }
@@ -130,6 +134,12 @@ export function createDefaultConfig() {
         oauthClientId: "",
         oauthClientSecret: "",
         googleCloudProject: "",
+      },
+      muse: {
+        enabled: false,
+        sessionsDb: "sessions-muse.db",
+        // muse-cli's own interpreter; empty = ~/.local/share/uv/tools/muse-cli/bin/python
+        python: "",
       },
     },
   };
@@ -202,6 +212,9 @@ function buildEnvFromConfig(config, backend, configPath) {
     env.GEMINI_OAUTH_CLIENT_ID = bc.oauthClientId || "";
     env.GEMINI_OAUTH_CLIENT_SECRET = bc.oauthClientSecret || "";
     env.GOOGLE_CLOUD_PROJECT = bc.googleCloudProject || "";
+  }
+  if (selected === "muse" && isNonEmptyString(bc.python)) {
+    env.MUSE_PYTHON = resolvePathMaybe(baseDir, bc.python);
   }
   return env;
 }

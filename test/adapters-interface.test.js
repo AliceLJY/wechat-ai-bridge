@@ -3,7 +3,7 @@ import test from "node:test";
 import { AVAILABLE_BACKENDS, createBackend } from "../adapters/interface.js";
 
 test("the adapter registry imports no optional backend at module load", () => {
-  assert.deepEqual([...AVAILABLE_BACKENDS], ["claude", "codex", "gemini"]);
+  assert.deepEqual([...AVAILABLE_BACKENDS], ["claude", "codex", "gemini", "muse"]);
 });
 
 test("only the selected backend module is imported", async () => {

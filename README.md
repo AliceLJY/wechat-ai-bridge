@@ -69,8 +69,18 @@ Bridge session mappings and preferences persist in SQLite. Claude and Codex sess
 | `claude` | Agent SDK + local Claude executable; agent tools, resumable sessions, bridge-mediated tool approval | Recommended |
 | `codex` | Codex SDK/CLI; agent tools and resumable threads, without bridge-mediated approval prompts | Recommended |
 | `gemini` | Google Code Assist API text generation with in-memory history; no local tool execution | Retired for personal accounts — see note below |
+| `muse` | Your [muse.ai](https://muse.ai) agent via the community [muse-cli](https://github.com/nikships/muse-cli); runs on Muse's own cloud VM, images and videos it makes come back as attachments | Experimental, unofficial |
 
 Select the backend at startup with `--backend`. `/backend` can switch only among adapters explicitly loaded by an advanced multi-adapter deployment.
+
+#### Muse backend (experimental)
+
+The `muse` backend forwards WeChat messages to a Muse side chat and waits for Muse's finished reply. Images you send are uploaded to `~/workspace/wechat-in/` on the Muse VM; image or video paths Muse names in its reply (`~/workspace/...`, 20 MB max, five per reply) are downloaded to `muse-out/` and sent back. Videos arrive as file attachments.
+
+- **Unofficial.** muse-cli talks to Muse's unversioned internal gateway with your browser login cookies. When the cookies expire or Muse changes its API, the backend stops answering until you log in again (`muse-cli status` tells you which). Whether automating your Muse account this way is acceptable under Muse's terms is your call.
+- **Setup.** Install muse-cli pinned (`uv tool install muse-cli==0.3.2`), log in, then `bun run bootstrap --backend muse`. Set `backends.muse.python` only if muse-cli's interpreter is not at `~/.local/share/uv/tools/muse-cli/bin/python`. Keep `shared.cwd` at a directory that contains this repo, or returned files are refused as outside the working directory.
+- **Limits.** A reply can take minutes (a 10-second video is about six). If Muse is still working when the bridge stops waiting (25 minutes, `MUSE_TURN_TIMEOUT_S`), its later reply is attached to your next message, because the bridge cannot message you first. `/cancel` stops waiting but does not stop Muse.
+- **Reach.** The helper only calls `session.start`, `chat.history`, `chat.stream`, `fs.write` (under `workspace/wechat-in/`), `fs.read` and `fs.stat`. It never deletes anything and never uses muse-cli's `raw` escape hatch.
 
 ### Claude Tool Approval via Chat
 
@@ -165,7 +175,7 @@ All commands are plain text — just type and send:
 WeChat App ←→ iLink Server (ilinkai.weixin.qq.com) ←→ wechat-ai-bridge ←→ AI Backend
                                                          │
                                                          ├── weixin/     (iLink connection)
-                                                         ├── adapters/   (Claude/Codex/Gemini)
+                                                         ├── adapters/   (Claude/Codex/Gemini/Muse)
                                                          ├── sessions.js (SQLite persistence)
                                                          └── bridge.js   (core message loop)
 ```
@@ -240,7 +250,7 @@ Comparison entries describe the projects as reviewed on 2026-07-17 and may chang
 - `inbound-files.js` — Portable filename sanitization + download containment
 - `runtime-paths.js` — Cross-platform home-directory resolution
 - `weixin/types.js` — iLink protocol constants
-- `adapters/` — AI backend integrations (Claude/Codex/Gemini)
+- `adapters/` — AI backend integrations (Claude/Codex/Gemini/Muse)
 - `executor/` — Execution modes
 
 </details>

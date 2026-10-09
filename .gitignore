@@ -7,5 +7,7 @@ config.json
 *.log
 .env
 files/
+muse-out/
 .wechat-ai-bridge/
 bun.lock
+__pycache__/

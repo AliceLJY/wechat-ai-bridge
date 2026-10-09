@@ -341,7 +341,7 @@ async function processPrompt(ctx, prompt) {
 
     // 注入 bridge 行为指令
     const bridgeHint = "[系统提示: 你通过微信 Bridge 与用户对话。当用户要求发送文件、截图或查看图片时：1) 在当前工作目录下用工具找到/生成文件 2) 在回复中包含文件的完整绝对路径，bridge 会在安全检查后发送给用户。绝对不要自己调用 curl 或任何 API。]\n\n";
-    const fullPrompt = bridgeHint + prompt;
+    const fullPrompt = (adapter.bridgeHint ?? bridgeHint) + prompt;
     const session = getSession(chatId);
     const sessionId = (session && session.backend === backendName) ? session.session_id : null;
 
@@ -602,7 +602,7 @@ async function handleCommand(ctx, text) {
         "/resume <id> — 恢复指定会话",
         "",
         "⚙️ 设置",
-        "/backend [name] — 切换后端 (claude/codex；gemini 已停用)",
+        "/backend [name] — 切换后端 (claude/codex/muse；gemini 已停用)",
         "/model [name] — 切换模型",
         "/effort [level] — 切换思考深度",
         "/dir [path|-] — 切换工作目录",

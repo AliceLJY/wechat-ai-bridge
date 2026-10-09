@@ -16,6 +16,8 @@ export const OUTBOUND_DOCUMENT_EXTENSIONS = new Set([
   ".pdf", ".docx", ".xlsx", ".csv", ".html", ".txt", ".md", ".json",
   ".js", ".ts", ".py", ".sh", ".yaml", ".yml", ".xml", ".zip", ".tar", ".gz",
 ]);
+// Sent as file attachments; WeChat opens them in its own player.
+export const OUTBOUND_VIDEO_EXTENSIONS = new Set([".mp4", ".mov"]);
 const SENSITIVE_DIRECTORY_NAMES = new Set([
   "auth",
   "config",
@@ -148,7 +150,9 @@ export function readOutboundFile(candidate, options = {}) {
       ? "image"
       : OUTBOUND_DOCUMENT_EXTENSIONS.has(extension)
         ? "document"
-        : null;
+        : OUTBOUND_VIDEO_EXTENSIONS.has(extension)
+          ? "video"
+          : null;
     if (!kind) return rejected("unsupported_type");
 
     const noFollow = Number(constants.O_NOFOLLOW || 0);

@@ -11,6 +11,7 @@ const ADAPTER_MODULES = {
   claude: "./claude.js",
   codex: "./codex.js",
   gemini: "./gemini.js",
+  muse: "./muse.js",
 };
 
 export const AVAILABLE_BACKENDS = Object.freeze(Object.keys(ADAPTER_MODULES));

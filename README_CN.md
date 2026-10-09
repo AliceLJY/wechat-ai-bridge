@@ -67,8 +67,18 @@ Bridge 的会话映射和偏好保存在 SQLite。Claude、Codex 可从各自的
 | `claude` | Agent SDK + 本机 Claude 可执行文件；Agent 工具、可恢复会话、Bridge 工具审批 | 主推荐 |
 | `codex` | Codex SDK/CLI；Agent 工具和可恢复 thread，不提供 Bridge 审批提示 | 主推荐 |
 | `gemini` | Google Code Assist API 文本生成，历史只在内存中；不执行本机工具 | 个人账号已不可用——见下方说明 |
+| `muse` | 经社区 [muse-cli](https://github.com/nikships/muse-cli) 接你在 [muse.ai](https://muse.ai) 上的 agent；在 Muse 自己的云端 VM 上干活，它做出的图片和视频作为附件发回微信 | 实验，非官方 |
 
 通常通过启动参数 `--backend` 选择后端。只有高级部署显式加载了多个适配器时，`/backend` 才能在这些已加载后端之间切换。
+
+#### Muse 后端（实验）
+
+`muse` 后端把微信消息转进 Muse 的一个侧边对话，等 Muse 做完再回。你发的图片会先传到 Muse VM 的 `~/workspace/wechat-in/`；Muse 在回复里写出的图片或视频路径（`~/workspace/...`，单个不超过 20MB，每条最多 5 个）会被取回到 `muse-out/` 再发给你。视频按文件附件发送。
+
+- **非官方。** muse-cli 用浏览器登录 Cookie 调 Muse 没有版本号的内部接口。Cookie 过期或 Muse 改接口时，后端会停止回复，直到重新登录（`muse-cli status` 能看出是哪种）。用这种方式自动化你的 Muse 账号是否符合它的条款，需要你自己判断。
+- **安装。** 固定版本装 muse-cli（`uv tool install muse-cli==0.3.2`），登录后运行 `bun run bootstrap --backend muse`。只有 muse-cli 的 Python 不在 `~/.local/share/uv/tools/muse-cli/bin/python` 时才需要设置 `backends.muse.python`。`shared.cwd` 要设成包含本仓库的目录，否则取回的文件会因为在工作目录之外被拒发。
+- **限制。** 一次回复可能要几分钟（10 秒视频大约 6 分钟）。如果 Bridge 停止等待时（25 分钟，`MUSE_TURN_TIMEOUT_S`）Muse 还没做完，它之后的回复会附在你下一条消息的回复前面，因为 Bridge 不能主动给你发消息。`/cancel` 只停止等待，不会让 Muse 停下。
+- **权限范围。** helper 只调用 `session.start`、`chat.history`、`chat.stream`、`fs.write`（限 `workspace/wechat-in/`）、`fs.read` 和 `fs.stat`，不删除任何东西，也不使用 muse-cli 的 `raw` 通道。
 
 ### Claude 工具审批
 
@@ -163,7 +173,7 @@ bun run start --backend claude
 微信 App ←→ iLink 服务器 (ilinkai.weixin.qq.com) ←→ wechat-ai-bridge ←→ AI 后端
                                                       │
                                                       ├── weixin/     (iLink 连接层)
-                                                      ├── adapters/   (Claude/Codex/Gemini)
+                                                      ├── adapters/   (Claude/Codex/Gemini/Muse)
                                                       ├── sessions.js (SQLite 持久化)
                                                       └── bridge.js   (核心消息循环)
 ```
