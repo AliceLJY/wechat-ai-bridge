@@ -130,7 +130,7 @@ export function createDefaultConfig() {
       gemini: {
         enabled: false,
         sessionsDb: "sessions-gemini.db",
-        model: "gemini-2.5-pro",
+        model: "gemini-3.8-flash",
         oauthClientId: "",
         oauthClientSecret: "",
         googleCloudProject: "",
