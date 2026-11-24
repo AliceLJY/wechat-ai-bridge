@@ -145,6 +145,11 @@ On first launch, a QR code appears in your terminal. Scan it with WeChat to auth
 
 `shared.allowedUserIds` is required and starts empty. Use exact, independently verified iLink `from_user_id` strings—not a display name, WeChat alias, or guessed value. The bridge never auto-claims the first contact. Validation fails while the list is empty; rejected sender IDs are written only to the local process log and are never added automatically. `start.js` serializes the configured list into the internal `WECHAT_ALLOWED_USER_IDS` environment variable before loading the bridge.
 
+If you do not already know your `from_user_id`:
+1. Temporarily set `"allowedUserIds": ["replace-with-verified-from_user_id"]` in `config.json` so `check` and `start` pass validation while still rejecting every real sender.
+2. Run `bun run start --backend claude`, scan the QR code to log in, and send a test message from your own WeChat account.
+3. Find the `[authz] rejected message from unapproved from_user_id="..."` line in the local process log, confirm it matches your own test message, replace the placeholder in `config.json` with that exact string, and restart the bridge.
+
 On POSIX hosts, the bridge enforces mode `0600` on `config.json` and `~/.wechat-ai-bridge/token.json`, and mode `0700` on `~/.wechat-ai-bridge/` and the inbound `files/` directory. It refuses symbolic links for these private paths; Windows deployments should also restrict these paths with local ACLs.
 
 ---

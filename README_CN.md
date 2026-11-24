@@ -143,6 +143,11 @@ bun run start --backend claude
 
 `shared.allowedUserIds` 是必填项，初始为空，例如 `"allowedUserIds": ["replace-with-verified-from_user_id"]`。这里只能填写经过独立核验的 iLink `from_user_id`，不能填显示名、微信昵称，也不能猜值。Bridge 不会自动认领第一个联系人；列表为空时配置校验会明确失败。被拒绝的 sender ID 只写入本机进程日志，不会自动加入白名单。`start.js` 会把配置序列化到内部环境变量 `WECHAT_ALLOWED_USER_IDS`，再加载 Bridge。
 
+如果还不清楚自己的 `from_user_id`，可以这样获取：
+1. 先在 `config.json` 中临时填入占位值，例如 `"allowedUserIds": ["replace-with-verified-from_user_id"]`，以通过 `check` 和 `start` 的非空校验（所有真实发送者仍会被拒绝）。
+2. 运行 `bun run start --backend claude`，用微信扫码登录后，从自己的微信发送一条测试消息。
+3. 在本机进程日志中查看 `[authz] rejected message from unapproved from_user_id="..."` 这一行，确认对应自己刚发的消息后，将该精确字符串替换进 `config.json` 的 `shared.allowedUserIds`，然后重启 Bridge。
+
 在 POSIX 主机上，Bridge 会把 `config.json`、`~/.wechat-ai-bridge/token.json` 权限设为 `0600`，把 `~/.wechat-ai-bridge/` 和入站 `files/` 目录权限设为 `0700`，并拒绝这些私有路径使用符号链接。Windows 部署还应通过本机 ACL 限制这些路径。
 
 ---
