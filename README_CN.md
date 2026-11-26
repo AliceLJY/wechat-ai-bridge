@@ -135,6 +135,7 @@ cd wechat-ai-bridge
 npm install              # 或者: bun install
 bun run bootstrap --backend claude
 # 编辑 config.json，把核验过的 iLink from_user_id 填入 shared.allowedUserIds。
+# 还不知道自己的 from_user_id？先按代码块下面三步填占位值，否则 check 会失败。
 bun run check --backend claude
 bun run start --backend claude
 ```
@@ -146,7 +147,7 @@ bun run start --backend claude
 如果还不清楚自己的 `from_user_id`，可以这样获取：
 1. 先在 `config.json` 中临时填入占位值，例如 `"allowedUserIds": ["replace-with-verified-from_user_id"]`，以通过 `check` 和 `start` 的非空校验（所有真实发送者仍会被拒绝）。
 2. 运行 `bun run start --backend claude`，用微信扫码登录后，从自己的微信发送一条测试消息。
-3. 在本机进程日志中查看 `[authz] rejected message from unapproved from_user_id="..."` 这一行，确认对应自己刚发的消息后，将该精确字符串替换进 `config.json` 的 `shared.allowedUserIds`，然后重启 Bridge。
+3. 在本机进程日志（就是运行 `start` 的那个终端里的输出）中查看 `[authz] rejected message from unapproved from_user_id="..."` 这一行，确认对应自己刚发的消息后，将该精确字符串替换进 `config.json` 的 `shared.allowedUserIds`，然后重启 Bridge。
 
 在 POSIX 主机上，Bridge 会把 `config.json`、`~/.wechat-ai-bridge/token.json` 权限设为 `0600`，把 `~/.wechat-ai-bridge/` 和入站 `files/` 目录权限设为 `0700`，并拒绝这些私有路径使用符号链接。Windows 部署还应通过本机 ACL 限制这些路径。
 
